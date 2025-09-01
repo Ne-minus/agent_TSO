@@ -1,6 +1,7 @@
 from langchain_core.tools import tool
 from typing import List, Annotated, Dict
 from bs4 import BeautifulSoup
+from langchain_core.documents import Document
 
 from agent.rag_module import FaissSearch
 from agent.config import Settings
@@ -20,8 +21,13 @@ def response_tool(
 
 
 @tool
-def question_user_tool(question: str) -> dict:
-    """Задать пользователю вопрос"""
+def question_user_tool(
+    question: Annotated[
+        str, "уточняющий вопрос, который необходимо задать пользователю."
+    ],
+) -> dict:
+    """Инструмент для того, чтобы уточнить у пользователя, информацию, которой тебе не хватает.
+    Использовать только для уточняющих вопросов."""
     # Print the question to the terminal
     print(f"\n[Follow-up question]: {question}")
     # Wait for the user's response
@@ -32,11 +38,20 @@ def question_user_tool(question: str) -> dict:
 @tool
 def kb_search_tool(query: Annotated[str, "вопрос пользователя по базе знаний"]) -> dict:
     """RAG for general QA"""
-    ctx = KNOWLEDGE_BASE.similarity_search(query, k=2)
-    if not ctx:
+    ctx_docs: list[Document] = KNOWLEDGE_BASE.similarity_search(query, k=2)
+    if not ctx_docs:
         return {"found": False, "answer": None, "context": []}
-    joined = "\n".join([f"{t}: {x}" for t, x in ctx])
-    return {"found": True, "answer": joined, "context": ctx}
+
+    def doc_to_str(d: Document) -> str:
+        title = (
+            (d.metadata or {}).get("title") or (d.metadata or {}).get("source") or ""
+        )
+        body = (d.page_content or "").strip()
+        return f"{title}: {body}" if title else body
+
+    joined = "\n".join(doc_to_str(d) for d in ctx_docs)
+    # if you need to return raw docs, convert to dicts to keep them JSON-serializable
+    return {"found": True, "answer": joined, "context": [d.dict() for d in ctx_docs]}
 
 
 _TICKET_MEM: Dict[str, Dict] = {}  # memory_key -> {scenario_id, filled}
@@ -146,7 +161,9 @@ def ticket_process_input(
 
 
 @tool
-def arsenal(param_list: List): ...
+def arsenal(param_list: List):
+    """Arsenal integration"""
+    ...
 
 
 @tool

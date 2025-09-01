@@ -78,6 +78,7 @@ while True:
             if isinstance(msg, AIMessage):
                 print(f"{Fore.YELLOW}{msg.content}{Style.RESET_ALL}")
             elif getattr(msg, "name", "") == "response_tool":
+                print("PRINT RESPONSE")
                 data = json.loads(msg.content)
                 print(f"{Fore.GREEN}{data.get('answer', '')}{Style.RESET_ALL}")
             else:

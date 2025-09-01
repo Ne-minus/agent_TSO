@@ -1,5 +1,7 @@
+import json
+
 from typing import Set
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from agent.state import AgentState
@@ -37,6 +39,42 @@ TICKET_TOOL_NAMES: Set[str] = {t.name for t in TICKET_TOOLS if hasattr(t, "name"
 GENERAL_TOOL_NAMES: Set[str] = {t.name for t in GENERAL_TOOLS if hasattr(t, "name")}
 
 
+# Словарь доступных инструментов по имени
+TOOLS_BY_NAME = {t.name: t for t in (GENERAL_TOOLS + TICKET_TOOLS)}
+
+
+def run_tools_and_wrap(ai_msg: AIMessage) -> list[ToolMessage]:
+    """Выполнить все tool_calls из AIMessage и вернуть список ToolMessage."""
+    tool_msgs: list[ToolMessage] = []
+    for tc in ai_msg.tool_calls or []:
+        name = tc["name"]
+        args = tc.get("args", {}) or {}
+        tool = TOOLS_BY_NAME.get(name)
+        if tool is None:
+            raise RuntimeError(f"LLM вызвал неизвестный инструмент: {name}")
+
+        try:
+            result = tool.invoke(args) if hasattr(tool, "invoke") else tool.func(**args)
+        except Exception as e:
+            result = {"error": f"{type(e).__name__}: {e}"}
+        if not isinstance(result, str):
+            try:
+                content = json.dumps(result, ensure_ascii=False)
+            except Exception:
+                content = str(result)
+        else:
+            content = result
+
+        tool_msgs.append(
+            ToolMessage(
+                content=content,
+                tool_call_id=tc["id"],
+                name=name,
+            )
+        )
+    return tool_msgs
+
+
 def _compose_prompt(extra: str = "") -> str:
     """System prompt with extra instuctions of needed."""
     return (
@@ -51,7 +89,7 @@ def reflect_node(state: AgentState, config: RunnableConfig, model):
     General reflection on whether we need QA or Ticket functional.
     """
     system = SystemMessage(_compose_prompt())
-    resp = model.bind_tools(GENERAL_TOOLS + TICKET_TOOLS).invoke(
+    resp = model.bind_tools(GENERAL_TOOLS).invoke(
         [system] + list(state["messages"]), config
     )
     return {"messages": [resp]}
@@ -70,11 +108,17 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
 - Всегда отправляй сообщения пользователю через response_tool.
 - Для всех ticket_* используй memory_key="default".
 """
+    messages = list(state["messages"])
+    last = messages[-1] if messages else None
+
+    # 1) Если предыдущий шаг уже вернул tool_calls — СНАЧАЛА закрываем их ToolMessage-ами
+    if isinstance(last, AIMessage) and getattr(last, "tool_calls", None):
+        tool_msgs = run_tools_and_wrap(last)
+        # Возвращаем только ToolMessage — следующий шаг графа уже пойдёт дальше без 422
+        return {"messages": tool_msgs, "ticket_active": True}
+
     system = SystemMessage(_compose_prompt(ticket_rules))
-    resp = model.bind_tools(GENERAL_TOOLS + TICKET_TOOLS).invoke(
-        [system] + list(state["messages"]), config
-    )
-    # for further routing back to ticket tools
+    resp = model.bind_tools(GENERAL_TOOLS).invoke([system] + messages, config)
     return {"messages": [resp], "ticket_active": True}
 
 

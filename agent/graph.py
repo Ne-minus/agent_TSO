@@ -31,29 +31,30 @@ def get_graph(model):
     # Точка входа
     g.set_entry_point("reflect")
 
-    # Reflection → условно: общий ToolNode / Ticket node / END
+    # Reflect → сразу в нужный ToolNode, если есть tool_calls
     g.add_conditional_edges(
         "reflect",
         should_route_after_reflect,
         {
-            "use_general_tool": "use_general_tool",
-            "ticket": "ticket",  # если выбран ticket-инструмент — сначала в Ticket node
+            "use_general_tool": "use_general_tool",  # общий инструмент → сразу выполняем
+            "use_ticket_tool": "use_ticket_tool",  # ТИКЕТ-инструмент → сразу выполняем (исправление!)
+            "ticket": "ticket",  # перейти в режим тикета (без tool_calls)
             "end": END,
         },
     )
 
-    # Ticket node → условно: ticket ToolNode / общий ToolNode / END
+    # Ticket → если модель хочет инструмент, идём сразу в соответствующий ToolNode
     g.add_conditional_edges(
         "ticket",
         should_route_after_ticket_reflect,
         {
             "use_ticket_tool": "use_ticket_tool",
-            "use_general_tool": "use_general_tool",  # временно «уходим» ответить на вопрос
+            "use_general_tool": "use_general_tool",
             "end": END,
         },
     )
 
-    # Execute ticket tools → условно: продолжить тикет / END (после finalize.ready=True)
+    # После выполнения тикет-инструмента: либо крутим тикет дальше, либо END
     g.add_conditional_edges(
         "use_ticket_tool",
         should_continue_after_ticket_tool,
@@ -63,7 +64,7 @@ def get_graph(model):
         },
     )
 
-    # Execute general tools → обратно: в Ticket node, если активен тикет, иначе в Reflection
+    # После общего инструмента: вернуться в ticket (если активен) или в reflect
     g.add_conditional_edges(
         "use_general_tool",
         after_general_tool,
