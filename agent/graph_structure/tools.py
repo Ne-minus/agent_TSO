@@ -37,7 +37,7 @@ def question_user_tool(
 
 @tool
 def kb_search_tool(query: Annotated[str, "вопрос пользователя по базе знаний"]) -> dict:
-    """RAG for general QA"""
+    """RAG для ответа на общие вопросы, касающиеся технических средств охраны в банке."""
     ctx_docs: list[Document] = KNOWLEDGE_BASE.similarity_search(query, k=2)
     if not ctx_docs:
         return {"found": False, "answer": None, "context": []}
@@ -54,7 +54,7 @@ def kb_search_tool(query: Annotated[str, "вопрос пользователя 
     return {"found": True, "answer": joined, "context": [d.dict() for d in ctx_docs]}
 
 
-_TICKET_MEM: Dict[str, Dict] = {}  # memory_key -> {scenario_id, filled}
+# _TICKET_MEM: Dict[str, Dict] = {}  # memory_key -> {scenario_id, filled}
 
 
 @tool

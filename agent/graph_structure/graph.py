@@ -3,8 +3,8 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt import ToolNode
 
-from agent.state import AgentState
-from agent.nodes import (
+from agent.graph_structure.state import AgentState
+from agent.graph_structure.nodes import (
     reflect_node,
     ticket_reflect_node,
     should_route_after_reflect,

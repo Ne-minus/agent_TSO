@@ -9,19 +9,14 @@ from colorama import init, Fore, Style
 import os
 from langchain_gigachat import GigaChat
 
-from agent.tools import (
+from agent.graph_structure.tools import (
     response_tool,
     question_user_tool,
     kb_search_tool,
 )
-from agent.graph import get_graph
+from agent.graph_structure.graph import get_graph
 from agent.model.model_init import get_llm
 
-
-# Получаем ключ
-api_key = os.getenv("GIGACHAT_API_KEY")
-if not api_key:
-    print("Error: GIGACHAT_API_KEY not found in environment variables")
 
 # Инициализируем модель
 model = get_llm()
@@ -78,7 +73,6 @@ while True:
             if isinstance(msg, AIMessage):
                 print(f"{Fore.YELLOW}{msg.content}{Style.RESET_ALL}")
             elif getattr(msg, "name", "") == "response_tool":
-                print("PRINT RESPONSE")
                 data = json.loads(msg.content)
                 print(f"{Fore.GREEN}{data.get('answer', '')}{Style.RESET_ALL}")
             else:

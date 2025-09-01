@@ -45,6 +45,6 @@ class FaissSearch:
 
     def scenario_search():
         """
-        Search for Scenarion and its parameters.
+        Search for scenarios and its parameters.
         """
         ...

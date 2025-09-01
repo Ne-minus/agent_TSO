@@ -4,10 +4,10 @@ from typing import Set
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
-from agent.state import AgentState
+from agent.graph_structure.state import AgentState
 from agent.prompts import create_system_prompt, get_react_instructions
 
-from agent.tools import (
+from agent.graph_structure.tools import (
     response_tool,
     kb_search_tool,
     question_user_tool,
