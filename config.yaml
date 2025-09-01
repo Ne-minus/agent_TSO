@@ -1,0 +1,42 @@
+system:
+  silent: True
+  logging_file: "somelogs.log"
+  # LEVELS: 10 - DEB, 20 - INF, 30 - WARN, 40 - ERR, 50 - CRITERR
+  logging_level: 20
+  ###
+  device: cuda
+  inside_docker_container: False
+  ###
+  ask_for_requester: True
+  knowledge_valuation: True
+  answer_without_knowledge: True
+
+
+docs:
+  main_extension: md
+  knowledge:
+    main_dir: data/knowledge/
+    docs_path: docs/
+    vector_store_path: vector_store/
+    top_k: 3
+    score_threshold: null
+  
+  tso_scenario:
+    main_dir: data/scenario/
+    docs_path: docs/
+    vector_store_path: vector_store/
+    top_k: 7
+    score_threshold: null
+
+
+models:
+  embeddings: "Embeddings"
+  llm_model_type: "GigaChat-2-Pro"
+  llm_base_url:  "https://gigachat.devices.sberbank.ru/api/v1"
+  language: ru
+
+
+api:
+  port: 8081
+  host: "0.0.0.0"
+  next_line_placeholder: "__next_line__"

@@ -78,6 +78,11 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     return {"messages": [resp], "ticket_active": True}
 
 
+### -----------------------
+### EDGES
+### -----------------------
+
+
 def should_route_after_reflect(state: AgentState):
     """
     Куда идти после Reflection:

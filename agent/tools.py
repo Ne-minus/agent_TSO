@@ -2,21 +2,13 @@ from langchain_core.tools import tool
 from typing import List, Annotated
 from bs4 import BeautifulSoup
 
-from rag.rag_module import FaissSearch
+from agent.rag_module import FaissSearch
+from agent.config import Settings
+from agent.model.model_init import get_embeddings
 
-
-@tool
-def response_tool(response: Annotated[str, "сообщение для пользователя"]) -> dict:
-    """Отправить сообщение пользователю. Это может быть вопрос или полный и развернутый ответ"""
-    return {"answer": response}
-
-
-from __future__ import annotations
-from typing import Annotated, Dict, List, Optional, Tuple
-from dataclasses import dataclass
-import json, re, os, datetime
-
-from langchain_core.tools import tool
+KNOWLEDGE_BASE = FaissSearch(
+    get_embeddings(), Settings.docs.knowledge.full_vector_store_path
+)
 
 
 @tool
@@ -28,9 +20,19 @@ def response_tool(
 
 
 @tool
+def question_user_tool(question: str) -> dict:
+    """Задать пользователю вопрос"""
+    # Print the question to the terminal
+    print(f"\n[Follow-up question]: {question}")
+    # Wait for the user's response
+    answer = input("> ")
+    return {"answer": answer}
+
+
+@tool
 def kb_search_tool(query: Annotated[str, "вопрос пользователя по базе знаний"]) -> dict:
     """RAG for general QA"""
-    ctx = _kb_retrieve(query, k=2)
+    ctx = KNOWLEDGE_BASE.similarity_search(query, k=2)
     if not ctx:
         return {"found": False, "answer": None, "context": []}
     joined = "\n".join([f"{t}: {x}" for t, x in ctx])

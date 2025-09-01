@@ -1,0 +1,48 @@
+import faiss
+import logging
+from langchain_community.vectorstores import FAISS
+
+from langchain_core.embeddings import Embeddings
+from langchain_core.documents import Document
+
+
+class FaissSearch:
+    def __init__(
+        self,
+        embeddings: Embeddings,
+        vectorstore_path: str | None = None,
+    ) -> None:
+
+        # Here we load already made index
+        # (for setting up we'd have separate class)
+        self.path = vectorstore_path
+        self.vector_store_faiss = FAISS.load_local(
+            folder_path=self.path,
+            embeddings=embeddings,
+            allow_dangerous_deserialization=True,
+        )
+        logging.info("[INIT]: Faiss vector store loaded")
+
+    def similarity_search(
+        self,
+        query: str,
+        k: int,
+        score_threshold: float | None = None,
+        filter: dict[str, str] | None = None,
+    ) -> list[Document]:
+
+        results = self.vector_store_faiss.similarity_search_with_relevance_scores(
+            query=query, k=k, score_threshold=score_threshold, filter=filter
+        )
+        results = [doc for doc, score in results]
+        return results
+
+    def find_by_ids(self, ids: list[str]) -> list[Document]:
+        results = self.vector_store_faiss.get_by_ids(ids)
+        return results
+
+    def scenario_search():
+        """
+        Search for Scenarion and its parameters.
+        """
+        ...
