@@ -5,3 +5,4 @@ test*
 rag_sources
 .DS_Store
 data/
+myenv/

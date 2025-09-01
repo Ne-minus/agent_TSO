@@ -2,13 +2,13 @@ from typing import Set
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 
-from state import AgentState
-from prompts import create_system_prompt, get_react_instructions
+from agent.state import AgentState
+from agent.prompts import create_system_prompt, get_react_instructions
 
-from tools import (
+from agent.tools import (
     response_tool,
-    search_tool,
     kb_search_tool,
+    question_user_tool,
     scenario_search_tool,
     scenario_get_tool,
     ticket_select_scenario,
@@ -19,7 +19,7 @@ from tools import (
 
 GENERAL_TOOLS = [
     response_tool,
-    search_tool,
+    question_user_tool,
     kb_search_tool,
 ]
 

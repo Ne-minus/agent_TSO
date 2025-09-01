@@ -1,14 +1,21 @@
-from langchain_core.messages import HumanMessage, AIMessage
-
 from dotenv import load_dotenv
+
 load_dotenv()
+
+from langchain_core.messages import HumanMessage, AIMessage
 
 import json
 from colorama import init, Fore, Style
-from graph import get_graph
 import os
 from langchain_gigachat import GigaChat
-from tools import response_tool, read_webpage_tool, current_date_tool, calculator_tool, search_tool
+
+from agent.tools import (
+    response_tool,
+    question_user_tool,
+    kb_search_tool,
+)
+from agent.graph import get_graph
+from agent.model.model_init import get_llm
 
 
 # Получаем ключ
@@ -17,52 +24,51 @@ if not api_key:
     print("Error: GIGACHAT_API_KEY not found in environment variables")
 
 # Инициализируем модель
-model = GigaChat(
-            credentials=api_key,
-            scope="GIGACHAT_API_CORP",
-            model="GigaChat-2-Max",
-            verify_ssl_certs=False,
-            profanity_check=False
-        )
+model = get_llm()
 
 tools_list = [
-    response_tool,       # Для коммуникации с пользователем
-    search_tool,         # Искать в интернете
-    read_webpage_tool,   # Просмотреть содержимое страницы
-    current_date_tool,   # Узнать текущую дату
-    calculator_tool,     # Калькулятор
+    response_tool,  # Для коммуникации с пользователем
+    question_user_tool,  # Искать в интернете
+    kb_search_tool,
 ]
 
 print("Tool names handed to graph:", [t.name for t in tools_list])
 
 model = model.bind_tools(tools_list)
 
-graph = get_graph(model, tools_list)
+graph = get_graph(model)
+
+# Pick a stable ID for this conversation/session/user
+THREAD_ID = "cli-session-001"  # e.g., f"user:{user_id}:conv:{conv_id}"
+# or: THREAD_ID = str(uuid4())         # stable only for this process run
 
 prompt = None
+config = {
+    "configurable": {
+        "thread_id": THREAD_ID,
+        "prompt": prompt,
+        # optional: separate memory per ticket/flow
+        # "checkpoint_ns": f"ticket:{ticket_id}",
+    }
+}
 
 conversation = {"messages": []}
-config={"configurable": {"prompt": prompt}}
 
 print("Чем могу помочь?")
 while True:
     user_input = input("You: ")
-    if user_input.lower() in ('exit', 'quit'):
+    if user_input.lower() in ("exit", "quit"):
         print("Goodbye!")
         break
 
-    first_human_message = HumanMessage(content=user_input)
-    # Add the user's message as a HumanMessage
-    conversation["messages"].append(first_human_message)
+    conversation["messages"].append(HumanMessage(content=user_input))
 
-    # Stream through the agent
     stream = graph.stream(
         conversation,
         stream_mode="values",
-        config=config
-        )
+        config=config,
+    )
 
-    # Collect assistant messages
     for step in stream:
         msg = step["messages"][-1]
         try:

@@ -34,7 +34,9 @@ class FaissSearch:
         results = self.vector_store_faiss.similarity_search_with_relevance_scores(
             query=query, k=k, score_threshold=score_threshold, filter=filter
         )
+        logging.info(f"[INFO]: We get results: {results}")
         results = [doc for doc, score in results]
+        logging.info(f"[INFO]: We get results: {results}")
         return results
 
     def find_by_ids(self, ids: list[str]) -> list[Document]:

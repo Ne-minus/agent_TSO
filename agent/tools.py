@@ -1,5 +1,5 @@
 from langchain_core.tools import tool
-from typing import List, Annotated
+from typing import List, Annotated, Dict
 from bs4 import BeautifulSoup
 
 from agent.rag_module import FaissSearch
@@ -13,10 +13,10 @@ KNOWLEDGE_BASE = FaissSearch(
 
 @tool
 def response_tool(
-    message: Annotated[str, "текст, который нужно отправить пользователю"],
+    answer: Annotated[str, "текст, который нужно отправить пользователю"],
 ) -> dict:
     """Единый способ отдать ответ пользователю. Всегда вызывай этот инструмент для финального текста ответа на шаге."""
-    return {"message": message}
+    return {"answer": answer}
 
 
 @tool
@@ -143,6 +143,10 @@ def ticket_process_input(
         "ask": (missing.get("ask") if missing else None),
         "hint": (missing.get("hint") if missing else None),
     }
+
+
+@tool
+def arsenal(param_list: List): ...
 
 
 @tool

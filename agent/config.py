@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Get the path to the yaml config file
 pwd = Path(__file__).parent.parent
-config_file = pwd / "config" / "config.yaml"
+config_file = pwd / "config.yaml"
 
 
 # ---------------------------------

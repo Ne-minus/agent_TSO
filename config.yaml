@@ -31,7 +31,7 @@ docs:
 
 models:
   embeddings: "Embeddings"
-  llm_model_type: "GigaChat-2-Pro"
+  llm_model_type: "GigaChat-2-Max"
   llm_base_url:  "https://gigachat.devices.sberbank.ru/api/v1"
   language: ru
 

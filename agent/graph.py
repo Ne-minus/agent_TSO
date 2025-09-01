@@ -1,9 +1,10 @@
 from functools import partial
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt import ToolNode
 
-from state import AgentState
-from nodes import (
+from agent.state import AgentState
+from agent.nodes import (
     reflect_node,
     ticket_reflect_node,
     should_route_after_reflect,
@@ -16,6 +17,7 @@ from nodes import (
 
 
 def get_graph(model):
+    checkpointer = InMemorySaver()
     g = StateGraph(AgentState)
 
     # Синие узлы (рефлексия)
@@ -71,4 +73,4 @@ def get_graph(model):
         },
     )
 
-    return g.compile()
+    return g.compile(checkpointer=checkpointer)
