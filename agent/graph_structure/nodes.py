@@ -27,12 +27,11 @@ GENERAL_TOOLS = [
 
 TICKET_TOOLS = [
     scenario_search_tool,
-    scenario_get_tool,
-    ticket_select_scenario,
-    ticket_sync_from_history,
-    ticket_process_input,
-    ticket_finalize,
-    response_tool,
+    # scenario_get_tool,
+    # ticket_select_scenario,
+    # ticket_sync_from_history,
+    # ticket_process_input,
+    # ticket_finalize,
 ]
 
 TICKET_TOOL_NAMES: Set[str] = {t.name for t in TICKET_TOOLS if hasattr(t, "name")}
@@ -89,7 +88,7 @@ def reflect_node(state: AgentState, config: RunnableConfig, model):
     General reflection on whether we need QA or Ticket functional.
     """
     system = SystemMessage(_compose_prompt())
-    resp = model.bind_tools(GENERAL_TOOLS).invoke(
+    resp = model.bind_tools(GENERAL_TOOLS + TICKET_TOOLS).invoke(
         [system] + list(state["messages"]), config
     )
     return {"messages": [resp]}
@@ -109,16 +108,12 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
 - Для всех ticket_* используй memory_key="default".
 """
     messages = list(state["messages"])
-    last = messages[-1] if messages else None
-
-    # 1) Если предыдущий шаг уже вернул tool_calls — СНАЧАЛА закрываем их ToolMessage-ами
-    if isinstance(last, AIMessage) and getattr(last, "tool_calls", None):
-        tool_msgs = run_tools_and_wrap(last)
-        # Возвращаем только ToolMessage — следующий шаг графа уже пойдёт дальше без 422
-        return {"messages": tool_msgs, "ticket_active": True}
-
     system = SystemMessage(_compose_prompt(ticket_rules))
-    resp = model.bind_tools(GENERAL_TOOLS).invoke([system] + messages, config)
+
+    # Даём доступ к ТИКЕТ и GENERAL тулзам (чтобы можно было спросить уточнение)
+    resp = model.bind_tools(TICKET_TOOLS + GENERAL_TOOLS).invoke(
+        [system] + messages, config
+    )
     return {"messages": [resp], "ticket_active": True}
 
 
@@ -140,58 +135,48 @@ def should_route_after_reflect(state: AgentState):
         return "end"
     for c in calls:
         if c["name"] in TICKET_TOOL_NAMES:
-            return "ticket"  # СНАЧАЛА в Ticket node
+            return "use_ticket_tool"  # ← СРАЗУ исполняем тикет-тул
     return "use_general_tool"
 
 
 def should_route_after_ticket_reflect(state: AgentState):
-    """
-    После Ticket node:
-      - если выбран ticket-инструмент → в Ticket ToolNode,
-      - если общий инструмент → в общий ToolNode (ответить на вопрос и вернуться),
-      - если нет tool_calls → END.
-    """
     last = state["messages"][-1]
     calls = getattr(last, "tool_calls", None) or []
     if not calls:
         return "end"
-    for c in calls:
-        if c["name"] in TICKET_TOOL_NAMES:
-            return "use_ticket_tool"
-    return "use_general_tool"
+    names = {c["name"] for c in calls}
+    if names & TICKET_TOOL_NAMES:
+        return "use_ticket_tool"
+    if names & GENERAL_TOOL_NAMES:
+        return "use_general_tool"
+    return "end"
 
 
 def should_continue_after_ticket_tool(state: AgentState):
-    """
-    После выполнения ticket-инструмента:
-      - если только что был ticket_finalize и {'ready': True} → END,
-      - иначе продолжаем тикет-цикл (возвращаемся в Ticket node).
-    """
-    msgs = list(state["messages"])
-    # ищем последний ToolMessage с именем ticket_finalize
-    for m in reversed(msgs):
-        name = getattr(m, "name", None)
-        if name == "ticket_finalize":
-            data = None
-            if isinstance(m.content, dict):
-                data = m.content
-            else:
+    # если финализировали — end
+    for m in reversed(list(state["messages"])):
+        if isinstance(m, ToolMessage) and getattr(m, "name", "") in {
+            "ticket_finalize",
+            "finalize",
+        }:
+            data = m.content
+            if not isinstance(data, dict):
                 try:
-                    import json
-
-                    data = json.loads(m.content)
+                    data = json.loads(data)
                 except Exception:
-                    data = None
+                    data = {}
             if isinstance(data, dict) and data.get("ready") is True:
                 return "end"
             break
+    # иначе крутим сценарий дальше
     return "ticket_loop"
 
 
 def after_general_tool(state: AgentState):
-    """
-    После общего ToolNode:
-      - если мы в процессе оформления (ticket_active=True) → вернуться в Ticket node,
-      - иначе → в Reflection node.
-    """
+    last = state["messages"][-1]
+    # if (
+    #     isinstance(last, ToolMessage)
+    #     and getattr(last, "name", "") == "question_user_tool"
+    # ):
+    #     return "await_user"  # закончить ход — UI задаёт вопрос, ждём ответ
     return "ticket" if state.get("ticket_active") else "reflect"

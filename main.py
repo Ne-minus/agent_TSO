@@ -13,6 +13,7 @@ from agent.graph_structure.tools import (
     response_tool,
     question_user_tool,
     kb_search_tool,
+    scenario_search_tool,
 )
 from agent.graph_structure.graph import get_graph
 from agent.model.model_init import get_llm
@@ -25,6 +26,7 @@ tools_list = [
     response_tool,  # Для коммуникации с пользователем
     question_user_tool,  # Искать в интернете
     kb_search_tool,
+    scenario_search_tool,
 ]
 
 print("Tool names handed to graph:", [t.name for t in tools_list])

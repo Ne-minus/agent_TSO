@@ -10,6 +10,9 @@ from agent.model.model_init import get_embeddings
 KNOWLEDGE_BASE = FaissSearch(
     get_embeddings(), Settings.docs.knowledge.full_vector_store_path
 )
+SCENARIO = FaissSearch(
+    get_embeddings(), Settings.docs.tso_scenario.full_vector_store_path
+)
 
 
 @tool
@@ -50,7 +53,7 @@ def kb_search_tool(query: Annotated[str, "вопрос пользователя 
         return f"{title}: {body}" if title else body
 
     joined = "\n".join(doc_to_str(d) for d in ctx_docs)
-    # if you need to return raw docs, convert to dicts to keep them JSON-serializable
+
     return {"found": True, "answer": joined, "context": [d.dict() for d in ctx_docs]}
 
 
@@ -60,11 +63,11 @@ def kb_search_tool(query: Annotated[str, "вопрос пользователя 
 @tool
 def scenario_search_tool(
     query: Annotated[str, "фраза пользователя, по которой подбираем сценарии"],
-    top_k: Annotated[int, "сколько кандидатов вернуть"] = 3,
+    top_k: Annotated[int, "сколько кандидатов вернуть"] = 10,
 ) -> dict:
-    """Ищет сценарии через FAISS. Возвращает до top_k кандидатов с вопросами для развилки."""
+    """Используется, если необходимо завести заявку о поломке или несиправности. Ищет сценарии через FAISS. Возвращает до top_k кандидатов с вопросами для развилки."""
     try:
-        cands = _search_scenarios(query, k=max(1, min(10, top_k)))
+        cands = SCENARIO.scenario_search(query, k=top_k)
     except Exception as e:
         return {"found": False, "error": f"search_failed: {e}"}
     return {"found": bool(cands), "candidates": cands}

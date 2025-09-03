@@ -15,6 +15,7 @@ class FaissSearch:
 
         # Here we load already made index
         # (for setting up we'd have separate class)
+
         self.path = vectorstore_path
         self.vector_store_faiss = FAISS.load_local(
             folder_path=self.path,
@@ -34,7 +35,6 @@ class FaissSearch:
         results = self.vector_store_faiss.similarity_search_with_relevance_scores(
             query=query, k=k, score_threshold=score_threshold, filter=filter
         )
-        logging.info(f"[INFO]: We get results: {results}")
         results = [doc for doc, score in results]
         logging.info(f"[INFO]: We get results: {results}")
         return results
@@ -43,8 +43,25 @@ class FaissSearch:
         results = self.vector_store_faiss.get_by_ids(ids)
         return results
 
-    def scenario_search():
+    def scenario_search(
+        self,
+        query: str,
+        k: int,
+        score_threshold: float | None = None,
+        filter: dict[str, str] | None = None,
+    ) -> list[Document]:
         """
         Search for scenarios and its parameters.
         """
-        ...
+        top_k = self.similarity_search(
+            query=query, k=k, score_threshold=score_threshold, filter=filter
+        )
+        exit_scenarios = []
+        for doc in top_k:
+            node = doc.metadata["node"]
+            if node not in exit_scenarios:
+                exit_scenarios.append(node)
+
+        print(f"RESULTS: {top_k}")
+
+        return exit_scenarios

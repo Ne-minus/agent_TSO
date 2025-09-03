@@ -38,7 +38,7 @@ def get_graph(model):
         {
             "use_general_tool": "use_general_tool",  # общий инструмент → сразу выполняем
             "use_ticket_tool": "use_ticket_tool",  # ТИКЕТ-инструмент → сразу выполняем (исправление!)
-            "ticket": "ticket",  # перейти в режим тикета (без tool_calls)
+            # "ticket": "ticket",  # перейти в режим тикета (без tool_calls)
             "end": END,
         },
     )
@@ -69,6 +69,7 @@ def get_graph(model):
         "use_general_tool",
         after_general_tool,
         {
+            # "await_user": END,  # ← важно: ход завершаем, ждём ответ пользователя
             "ticket": "ticket",
             "reflect": "reflect",
         },
