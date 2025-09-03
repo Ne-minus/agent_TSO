@@ -5,7 +5,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 from langchain_core.runnables import RunnableConfig
 
 from agent.graph_structure.state import AgentState
-from agent.prompts import create_system_prompt, get_react_instructions
+from agent.prompts.prompts import create_system_prompt, get_react_instructions
 
 from agent.graph_structure.tools import (
     response_tool,
@@ -174,9 +174,5 @@ def should_continue_after_ticket_tool(state: AgentState):
 
 def after_general_tool(state: AgentState):
     last = state["messages"][-1]
-    # if (
-    #     isinstance(last, ToolMessage)
-    #     and getattr(last, "name", "") == "question_user_tool"
-    # ):
-    #     return "await_user"  # закончить ход — UI задаёт вопрос, ждём ответ
+
     return "ticket" if state.get("ticket_active") else "reflect"
