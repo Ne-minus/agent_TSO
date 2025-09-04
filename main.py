@@ -16,6 +16,7 @@ from agent.graph_structure.tools import (
     scenario_search_tool,
     get_params_tool,
     fill_params_tool,
+    get_params_tool,
 )
 from agent.graph_structure.graph import get_graph
 from agent.model.model_init import get_llm
@@ -23,6 +24,8 @@ from agent.model.model_init import get_llm
 model = get_llm()
 
 tools_list = [
+    response_tool,
+    question_user_tool,
     response_tool,
     question_user_tool,
     kb_search_tool,
@@ -36,6 +39,9 @@ print("Tool names handed to graph:", [t.name for t in tools_list])
 model = model.bind_tools(tools_list)
 
 graph = get_graph(model)
+
+
+THREAD_ID = "cli-session-001"
 
 
 THREAD_ID = "cli-session-001"
