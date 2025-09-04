@@ -12,11 +12,7 @@ from agent.graph_structure.tools import (
     kb_search_tool,
     question_user_tool,
     scenario_search_tool,
-    scenario_get_tool,
-    ticket_select_scenario,
-    ticket_sync_from_history,
-    ticket_process_input,
-    ticket_finalize,
+    get_params_tool,
 )
 
 GENERAL_TOOLS = [
@@ -27,6 +23,7 @@ GENERAL_TOOLS = [
 
 TICKET_TOOLS = [
     scenario_search_tool,
+    get_params_tool,
     # scenario_get_tool,
     # ticket_select_scenario,
     # ticket_sync_from_history,
@@ -110,7 +107,6 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(ticket_rules))
 
-    # Даём доступ к ТИКЕТ и GENERAL тулзам (чтобы можно было спросить уточнение)
     resp = model.bind_tools(TICKET_TOOLS + GENERAL_TOOLS).invoke(
         [system] + messages, config
     )

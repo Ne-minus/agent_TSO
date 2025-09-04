@@ -14,6 +14,7 @@ from agent.graph_structure.tools import (
     question_user_tool,
     kb_search_tool,
     scenario_search_tool,
+    get_params_tool,
 )
 from agent.graph_structure.graph import get_graph
 from agent.model.model_init import get_llm
@@ -23,10 +24,11 @@ from agent.model.model_init import get_llm
 model = get_llm()
 
 tools_list = [
-    response_tool,  # Для коммуникации с пользователем
-    question_user_tool,  # Искать в интернете
+    response_tool,
+    question_user_tool,
     kb_search_tool,
     scenario_search_tool,
+    get_params_tool,
 ]
 
 print("Tool names handed to graph:", [t.name for t in tools_list])
@@ -35,9 +37,9 @@ model = model.bind_tools(tools_list)
 
 graph = get_graph(model)
 
-# Pick a stable ID for this conversation/session/user
-THREAD_ID = "cli-session-001"  # e.g., f"user:{user_id}:conv:{conv_id}"
-# or: THREAD_ID = str(uuid4())         # stable only for this process run
+
+THREAD_ID = "cli-session-001"
+
 
 prompt = None
 config = {

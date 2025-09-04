@@ -5,7 +5,7 @@ import yaml
 
 # TODO come up with something better than this
 # prompts_path = Path("./resources") / "prompts.yaml"
-prompts_path = "agent/prompts.yaml"
+prompts_path = "agent/prompts/prompts_main.yaml"
 with open(prompts_path, "r", encoding="utf-8") as f:
     prompts = yaml.safe_load(f)
 
