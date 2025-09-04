@@ -67,6 +67,7 @@ while True:
         stream_mode="values",
         config=config,
     )
+    print(stream)
 
     for step in stream:
         msg = step["messages"][-1]
