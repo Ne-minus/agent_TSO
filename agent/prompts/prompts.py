@@ -16,3 +16,11 @@ def create_system_prompt() -> str:
 
 def get_react_instructions() -> str:
     return prompts["react_instructions"]
+
+
+def get_ticket_prompt() -> str:
+    return prompts["ticket_system_prompt"]
+
+
+def get_formatting_prompt() -> str:
+    return prompts["formatting_prompt"]

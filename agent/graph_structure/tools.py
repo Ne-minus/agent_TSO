@@ -89,7 +89,7 @@ def get_params_tool(
     parameters = {}
     for param in cands[0].parameters:
         parameters[param.name] = {
-            "info": f"Описание: {param.description}Примеры: \n{param.examples}Подсказка: \n{param.hint}Запрос в стороннюю систему: \n{param.out_of_system}",
+            "info": f"Описание: {param.description}\nПримеры: {param.examples}\nПодсказка: {param.hint}\nЗапрос в стороннюю систему: {param.out_of_system}",
             "value": None,
         }
 
@@ -108,7 +108,50 @@ def get_params_tool(
 
 @tool
 def fill_params_tool(
-    memory: InjectedStore,
-    state: InjectedState,
+    # memory: Annotated[dict, InjectedStore] = None,
+    state: Annotated[dict, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
-) -> Command: ...
+    check_history: Annotated[
+        bool,
+        "Нужно ли проверять историю, если ранее проверка уже производилась, значение False",
+    ] = False,
+) -> Command:
+    """
+    Сканирует историю диалога и находит ранее указанные пользователем значения параметров (если они есть).
+    Проверяет, какие еще параметры нужно запросить у пользователя, чтобы точно заполнить заявку полность.
+    """
+    params_to_fill = state.get("ticket_data")
+    missing = [
+        param for param in params_to_fill if params_to_fill[param]["value"] is None
+    ]
+    print(f"MISSING: {missing}")
+
+    if missing == []:
+        msg_text = f"Success: filled {len(params_to_fill)} parameters "
+        return Command(
+            update={
+                "messages": [ToolMessage(msg_text, tool_call_id=tool_call_id)],
+                "ticket_active": False,
+                "awaiting_param": None,
+            },
+        )
+
+    # if check_history:
+    #     params_before = _history(params_to_fill, memory)
+
+    for param in missing:
+        print(params_to_fill)
+        if params_to_fill[param]["value"] is None:
+            # ask user for it
+
+            msg_text = (
+                f"Нужна информация от пользователя: необходимо значение параметры '{param}'."
+                f"Описание и примеры заполнения: {params_to_fill[param]['info']}"
+            )
+            return Command(
+                goto="ticket_reflect_node",
+                update={
+                    "messages": [ToolMessage(msg_text, tool_call_id=tool_call_id)],
+                    "awaiting_param": param,
+                },
+            )

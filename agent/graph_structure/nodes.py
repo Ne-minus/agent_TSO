@@ -5,7 +5,12 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 from langchain_core.runnables import RunnableConfig
 
 from agent.graph_structure.state import AgentState
-from agent.prompts.prompts import create_system_prompt, get_react_instructions
+from agent.prompts.prompts import (
+    create_system_prompt,
+    get_ticket_prompt,
+    get_react_instructions,
+    get_formatting_prompt,
+)
 
 from agent.graph_structure.tools import (
     response_tool,
@@ -13,6 +18,7 @@ from agent.graph_structure.tools import (
     question_user_tool,
     scenario_search_tool,
     get_params_tool,
+    fill_params_tool,
 )
 
 GENERAL_TOOLS = [
@@ -24,6 +30,7 @@ GENERAL_TOOLS = [
 TICKET_TOOLS = [
     scenario_search_tool,
     get_params_tool,
+    fill_params_tool,
     # scenario_get_tool,
     # ticket_select_scenario,
     # ticket_sync_from_history,
@@ -71,13 +78,13 @@ def run_tools_and_wrap(ai_msg: AIMessage) -> list[ToolMessage]:
     return tool_msgs
 
 
-def _compose_prompt(extra: str = "") -> str:
+def _compose_prompt(if_ticket: bool = False, extra: str = "") -> str:
     """System prompt with extra instuctions of needed."""
-    return (
-        create_system_prompt()
-        + get_react_instructions()
-        + (("\n" + extra) if extra else "")
-    )
+    if if_ticket:
+        system_prompt = get_ticket_prompt()
+    else:
+        system_prompt = create_system_prompt()
+    return system_prompt + get_react_instructions() + (("\n" + extra) if extra else "")
 
 
 def reflect_node(state: AgentState, config: RunnableConfig, model):
@@ -97,20 +104,40 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     Both general and ticket tools are allowed.
     After using general tools, we go back here till filling process is active.
     """
-    ticket_rules = """
-[Ticket mode]
-- Ты в процессе оформления заявки. Предпочитай ticket_* инструменты, чтобы продвигаться по сценарию (scenario_search → select → sync_from_history → process_input → finalize).
-- Если в процессе задают вопрос — можешь вызвать GENERAL инструменты (например, kb_search_tool), кратко ответь и вернись к сбору параметров.
-- Всегда отправляй сообщения пользователю через response_tool.
-- Для всех ticket_* используй memory_key="default".
-"""
+    #     ticket_rules = """
+    # [Ticket mode]
+    # - Ты в процессе оформления заявки. Предпочитай ticket_* инструменты, чтобы продвигаться по сценарию (scenario_search → select → sync_from_history → process_input → finalize).
+    # - Если в процессе задают вопрос — можешь вызвать GENERAL инструменты (например, kb_search_tool), кратко ответь и вернись к сбору параметров.
+    # - Всегда отправляй сообщения пользователю через response_tool.
+    # - Для всех ticket_* используй memory_key="default".
+    # """
     messages = list(state["messages"])
-    system = SystemMessage(_compose_prompt(ticket_rules))
+    system = SystemMessage(_compose_prompt(if_ticket=True))
+    print(f"WE ABOUT TO FILL PARAMS: {state.get("awaiting_param") }")
 
-    resp = model.bind_tools(TICKET_TOOLS + GENERAL_TOOLS).invoke(
-        [system] + messages, config
-    )
-    return {"messages": [resp], "ticket_active": True}
+    if state.get("awaiting_param") is not None:
+        print("WE FILL PARAMS")
+
+        resp = model.bind_tools(TICKET_TOOLS + GENERAL_TOOLS).invoke(
+            [SystemMessage(get_formatting_prompt())] + messages, config
+        )
+        if resp == "None":
+            resp = None
+
+        parameters_to_fill = state.get("ticket_data")
+        parameters_to_fill[state.get("awaiting_param")]["value"] = resp
+        return {
+            "messages": [resp],
+            "ticket_active": True,
+            "ticket_data": parameters_to_fill,
+        }
+
+    else:
+        resp = model.bind_tools(TICKET_TOOLS + GENERAL_TOOLS).invoke(
+            [system] + messages, config
+        )
+
+        return {"messages": [resp], "ticket_active": True}
 
 
 ### -----------------------

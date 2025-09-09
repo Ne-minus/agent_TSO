@@ -15,12 +15,11 @@ from agent.graph_structure.tools import (
     kb_search_tool,
     scenario_search_tool,
     get_params_tool,
+    fill_params_tool,
 )
 from agent.graph_structure.graph import get_graph
 from agent.model.model_init import get_llm
 
-
-# Инициализируем модель
 model = get_llm()
 
 tools_list = [
@@ -29,6 +28,7 @@ tools_list = [
     kb_search_tool,
     scenario_search_tool,
     get_params_tool,
+    fill_params_tool,
 ]
 
 print("Tool names handed to graph:", [t.name for t in tools_list])
