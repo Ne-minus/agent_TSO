@@ -39,10 +39,10 @@ def question_user_tool(
     """Инструмент для того, чтобы уточнить у пользователя, информацию, которой тебе не хватает.
     Использовать только для уточняющих вопросов."""
     # Print the question to the terminal
-    print(f"\n[Follow-up question]: {question}")
-    # Wait for the user's response
-    answer = input("> ")
-    return {"answer": answer}
+    return {
+        "type": "ask_user",
+        "question": question,
+    }
 
 
 @tool

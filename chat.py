@@ -18,6 +18,8 @@ from agent.graph_structure.tools import (
     question_user_tool,
     kb_search_tool,
     scenario_search_tool,
+    get_params_tool,
+    fill_params_tool,
 )
 from agent.graph_structure.graph import get_graph
 from agent.model.model_init import get_llm
@@ -27,10 +29,12 @@ from agent.model.model_init import get_llm
 model = get_llm()
 
 tools_list = [
-    response_tool,  # Для коммуникации с пользователем
-    question_user_tool,  # Искать в интернете
+    response_tool,
+    question_user_tool,
     kb_search_tool,
     scenario_search_tool,
+    get_params_tool,
+    fill_params_tool,
 ]
 
 print("Tool names handed to graph:", [t.name for t in tools_list])
@@ -54,22 +58,28 @@ config = {
 }
 
 # вот здесь начинается streamlit
-st.title('Chat')
-st.caption('🚀Chat')
+st.title("Chat")
+st.caption("🚀Chat")
 
 # Стартовое сообщение сохраняем в session_state
 if "message" not in st.session_state:
-    st.session_state["messages"] = [{"role": "assistant", "content": "Чем могу помочь?"}]
+    st.session_state["messages"] = [
+        {"role": "assistant", "content": "Чем могу помочь?"}
+    ]
 
 # Выводим стартовое сообщение в чат
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
 
-conversation = {"messages": []} # это по аналогии с main.py, чтобы в терминале дублировалось все
+conversation = {
+    "messages": []
+}  # это по аналогии с main.py, чтобы в терминале дублировалось все
 
-if prompt := st.chat_input(): # пользователь пишет
-    st.session_state.messages.append({"role": "user", "content": HumanMessage(content=prompt)}) # добавляем сообщение пользователя в session_state
-    st.chat_message("user").write(prompt) # выводим сообщение пользователя в чат
+if prompt := st.chat_input():  # пользователь пишет
+    st.session_state.messages.append(
+        {"role": "user", "content": HumanMessage(content=prompt)}
+    )  # добавляем сообщение пользователя в session_state
+    st.chat_message("user").write(prompt)  # выводим сообщение пользователя в чат
 
     conversation["messages"].append(HumanMessage(content=prompt))
 
