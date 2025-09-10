@@ -1,18 +1,10 @@
 import streamlit as st
-
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from langchain_core.messages import HumanMessage, AIMessage
-
 import json
-from colorama import init, Fore, Style
-import os
-from langchain_gigachat import GigaChat
-
-# забрал всё из main.py
-
+from langchain_core.messages import HumanMessage, AIMessage
 from agent.graph_structure.tools import (
     response_tool,
     question_user_tool,
@@ -25,87 +17,130 @@ from agent.graph_structure.graph import get_graph
 from agent.model.model_init import get_llm
 
 
-# Инициализируем модель
-model = get_llm()
+# ---------- Инициализация одноразовая (не вносите в session_state то, что не нужно сериализовать) ----------
+@st.cache_resource(show_spinner=False)
+def _init_graph():
+    model = get_llm()
+    tools_list = [
+        response_tool,
+        question_user_tool,
+        kb_search_tool,
+        scenario_search_tool,
+        get_params_tool,
+        fill_params_tool,
+    ]
+    model = model.bind_tools(tools_list)
+    graph = get_graph(model)
+    return graph
 
-tools_list = [
-    response_tool,
-    question_user_tool,
-    kb_search_tool,
-    scenario_search_tool,
-    get_params_tool,
-    fill_params_tool,
-]
 
-print("Tool names handed to graph:", [t.name for t in tools_list])
+graph = _init_graph()
 
-model = model.bind_tools(tools_list)
+THREAD_ID = "cli-session-001"
+config = {"configurable": {"thread_id": THREAD_ID, "prompt": None}}
 
-graph = get_graph(model)
-
-# Pick a stable ID for this conversation/session/user
-THREAD_ID = "cli-session-001"  # e.g., f"user:{user_id}:conv:{conv_id}"
-# or: THREAD_ID = str(uuid4())         # stable only for this process run
-
-prompt = None
-config = {
-    "configurable": {
-        "thread_id": THREAD_ID,
-        "prompt": prompt,
-        # optional: separate memory per ticket/flow
-        # "checkpoint_ns": f"ticket:{ticket_id}",
-    }
-}
-
-# вот здесь начинается streamlit
-st.title("Chat")
-st.caption("🚀Chat")
-
-# Стартовое сообщение сохраняем в session_state
-if "message" not in st.session_state:
-    st.session_state["messages"] = [
+# ---------- session_state ----------
+if "ui_messages" not in st.session_state:
+    # Лента для UI (строки): [{"role": "assistant"|"user", "content": "..."}, ...]
+    st.session_state.ui_messages = [
         {"role": "assistant", "content": "Чем могу помочь?"}
     ]
 
-# Выводим стартовое сообщение в чат
-for msg in st.session_state.messages:
-    st.chat_message(msg["role"]).write(msg["content"])
+if "lc_messages" not in st.session_state:
+    # Лента для LangChain: [HumanMessage(...), AIMessage(...), ToolMessage(...)]
+    st.session_state.lc_messages = []
 
-conversation = {
-    "messages": []
-}  # это по аналогии с main.py, чтобы в терминале дублировалось все
+if "pending_tool_question" not in st.session_state:
+    # Если граф задал вопрос через question_user_tool — держим тут текст вопроса
+    st.session_state.pending_tool_question = None
 
-if prompt := st.chat_input():  # пользователь пишет
-    st.session_state.messages.append(
-        {"role": "user", "content": HumanMessage(content=prompt)}
-    )  # добавляем сообщение пользователя в session_state
-    st.chat_message("user").write(prompt)  # выводим сообщение пользователя в чат
+st.title("Chat")
+st.caption("🚀 Chat")
 
-    conversation["messages"].append(HumanMessage(content=prompt))
+# ---------- Рендер истории ----------
+for m in st.session_state.ui_messages:
+    st.chat_message(m["role"]).write(m["content"])
 
-    stream = graph.stream(
-        conversation,
-        stream_mode="values",
-        config=config,
-    )
+# Если есть незавершённый вопрос от графа — покажем подсказку
+if st.session_state.pending_tool_question:
+    st.info("Вопрос от ассистента: " + st.session_state.pending_tool_question)
+
+# ---------- Ввод пользователя ----------
+user_text = st.chat_input("Введите сообщение...")
+
+if user_text:
+    # 1) UI-лента
+    st.session_state.ui_messages.append({"role": "user", "content": user_text})
+    st.chat_message("user").write(user_text)
+
+    # 2) LangChain-лента
+    st.session_state.lc_messages.append(HumanMessage(content=user_text))
+
+    # 3) Запуск графа на основе всей истории
+    conversation = {"messages": st.session_state.lc_messages.copy()}
+
+    # Подготовим placeholder под «поточную печать» ассистента
+    assistant_box = st.chat_message("assistant")
+    placeholder = assistant_box.empty()
+    incremental_text = ""
+
+    # Сбросим флаг незавершённого вопроса: этот ход может на него отвечать
+    st.session_state.pending_tool_question = None
+
+    # 4) Поток
+    stream = graph.stream(conversation, stream_mode="values", config=config)
+
+    # Флаг: надо остановиться и дождаться ответа пользователя (когда граф задал вопрос)
+    must_wait_for_user = False
 
     for step in stream:
         msg = step["messages"][-1]
-        try:
-            if msg in conversation["messages"]:
-                continue
 
-            if isinstance(msg, AIMessage):
-                print(f"{Fore.YELLOW}{msg.content}{Style.RESET_ALL}")
-                st.session_state.messages.append({"role": "assistant", "content": msg})
-                conversation["messages"].append(msg)
-            elif getattr(msg, "name", "") == "response_tool":
-                data = json.loads(msg.content)
-                print(f"{Fore.GREEN}{data.get('answer', '')}{Style.RESET_ALL}")
-            else:
-                msg.pretty_print()
-            conversation["messages"].append(msg)
-            st.session_state.messages.append(msg)
-            st.chat_message("assistant").write(msg.content)
-        except AttributeError:
-            print(msg)
+        # Пропускаем дубли
+        if msg in st.session_state.lc_messages:
+            continue
+
+        tool_name = getattr(msg, "name", "")
+
+        # --- Рефлексия (AIMessage): печатаем в консоль, в чат не выводим ---
+        if isinstance(msg, AIMessage):
+            print("\n--- Reflection ---")
+            print(msg.content)
+            print("------------------\n")
+            st.session_state.lc_messages.append(msg)
+            continue
+
+        # --- Финальный ответ ---
+        if tool_name == "response_tool":
+            data = json.loads(msg.content) if msg.content else {}
+            answer = data.get("answer", "")
+            if answer:
+                incremental_text = (
+                    incremental_text + ("\n" if incremental_text else "") + answer
+                ).strip()
+                placeholder.write(incremental_text)
+                st.session_state.ui_messages.append(
+                    {"role": "assistant", "content": answer}
+                )
+            st.session_state.lc_messages.append(msg)
+            continue
+
+        # --- Вопрос на уточнение ---
+        if tool_name == "question_user_tool":
+            data = json.loads(msg.content) if msg.content else {}
+            q = data.get("question") or data.get("text") or "Можете уточнить детали?"
+            st.session_state.pending_tool_question = q
+            assistant_text = f"Нужны уточнения: {q}"
+            incremental_text = (
+                incremental_text + ("\n" if incremental_text else "") + assistant_text
+            ).strip()
+            placeholder.write(incremental_text)
+            st.session_state.ui_messages.append(
+                {"role": "assistant", "content": assistant_text}
+            )
+            st.session_state.lc_messages.append(msg)
+            must_wait_for_user = True
+            continue
+
+        # --- Прочие сообщения ---
+        st.session_state.lc_messages.append(msg)
