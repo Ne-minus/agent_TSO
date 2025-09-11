@@ -1,6 +1,6 @@
 from langchain_core.tools import tool, InjectedToolCallId
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
-from typing import List, Annotated, Dict, Literal
+from typing import List, Annotated, Dict, Literal, Optional
 from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 from langgraph.types import Command
@@ -10,6 +10,7 @@ from langgraph.prebuilt import InjectedState, InjectedStore
 from agent.rag_module import FaissSearch
 from agent.config import Settings
 from agent.model.model_init import get_embeddings
+from contract.schemas import UserValidation
 
 KNOWLEDGE_BASE = FaissSearch(
     get_embeddings(), Settings.docs.knowledge.full_vector_store_path
@@ -59,9 +60,6 @@ def kb_search_tool(query: Annotated[str, "вопрос пользователя 
     return {"found": True, "answer": joined, "context": [d.dict() for d in ctx_docs]}
 
 
-# _TICKET_MEM: Dict[str, Dict] = {}  # memory_key -> {scenario_id, filled}
-
-
 @tool
 def scenario_search_tool(
     query: Annotated[str, "фраза пользователя, по которой подбираем сценарии"],
@@ -106,11 +104,53 @@ def get_params_tool(
     )
 
 
+def _create_update(result: UserValidation) -> Command:
+    return Command(
+        update={
+            "messages": [
+                ToolMessage(
+                    msg_text=result.message,
+                    tool_call_id=result.tool_call_id,
+                )
+            ],
+            "user_validated": result.user_validated,
+            "action": result.action,
+        }
+    )
+
+
 @tool
 def validate_user_tool(
     state: Annotated[dict, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
-) -> Command: ...
+) -> Command:
+    user = state.get("user_info")
+    validation_status = state.get("user_validated")
+    # change_to_name = state.get("change_to_name")
+
+    result = UserValidation(user=user, tool_call_id=tool_call_id)
+
+    match validation_status:
+        case False:
+            # if change_to_name:
+            result.action = "SELECT_INNER_CLIENT"
+            result.user_validated = "in progress"
+            result.message = f"""У тебя есть ФИО пользователя: {result.user.name}, его табельный номер: {result.user.empid}. 
+                            Обязательно уточни, от своего имени он ее заводит или нет."""
+
+            return _create_update(result)
+            # else:
+            #     result.user_validated = "in progress"
+            #     result.message = f"""У тебя есть ФИО пользователя: {result.user.name}, его табельный номер: {result.user.empid}.
+            #                     Он заводит заявку от своего имени, далее провалидируй адрес."""
+
+        case "in progress":
+            if hasattr(user, "workPlaceLocation"):
+                ...
+            else:
+                ...
+        case True:
+            ...
 
 
 @tool

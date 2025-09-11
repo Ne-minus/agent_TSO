@@ -13,3 +13,9 @@ class AgentState(TypedDict):
     ticket_active: bool
     ticket_data: Optional[Dict]
     awaiting_param: Optional[str]
+
+    user_validated: bool | Literal["in progress"]
+    action: Optional[
+        Literal["CREATE_TICKET", "SELECT_ASUN_BUILDING", "SELECT_INNER_CLIENT"]
+    ]
+    change_to_name: bool
