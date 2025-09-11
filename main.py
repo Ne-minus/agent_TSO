@@ -10,8 +10,7 @@ import os
 from langchain_gigachat import GigaChat
 
 from agent.graph_structure.tools import (
-    response_tool,
-    question_user_tool,
+    user_interaction_tool,
     kb_search_tool,
     scenario_search_tool,
     get_params_tool,
@@ -24,10 +23,7 @@ from agent.model.model_init import get_llm
 model = get_llm()
 
 tools_list = [
-    response_tool,
-    question_user_tool,
-    response_tool,
-    question_user_tool,
+    user_interaction_tool,
     kb_search_tool,
     scenario_search_tool,
     get_params_tool,

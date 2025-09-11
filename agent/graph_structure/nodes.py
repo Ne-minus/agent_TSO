@@ -13,17 +13,15 @@ from agent.prompts.prompts import (
 )
 
 from agent.graph_structure.tools import (
-    response_tool,
+    user_interaction_tool,
     kb_search_tool,
-    question_user_tool,
     scenario_search_tool,
     get_params_tool,
     fill_params_tool,
 )
 
 GENERAL_TOOLS = [
-    response_tool,
-    question_user_tool,
+    user_interaction_tool,
     kb_search_tool,
 ]
 
@@ -104,13 +102,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     Both general and ticket tools are allowed.
     After using general tools, we go back here till filling process is active.
     """
-    #     ticket_rules = """
-    # [Ticket mode]
-    # - Ты в процессе оформления заявки. Предпочитай ticket_* инструменты, чтобы продвигаться по сценарию (scenario_search → select → sync_from_history → process_input → finalize).
-    # - Если в процессе задают вопрос — можешь вызвать GENERAL инструменты (например, kb_search_tool), кратко ответь и вернись к сбору параметров.
-    # - Всегда отправляй сообщения пользователю через response_tool.
-    # - Для всех ticket_* используй memory_key="default".
-    # """
+
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(if_ticket=True))
     print(f"WE ABOUT TO FILL PARAMS: {state.get("awaiting_param") }")
@@ -137,7 +129,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             [system] + messages, config
         )
 
-        return {"messages": [resp], "ticket_active": True}
+        return {"messages": [resp]}
 
 
 ### -----------------------

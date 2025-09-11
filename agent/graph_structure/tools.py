@@ -1,14 +1,11 @@
 from langchain_core.tools import tool, InjectedToolCallId
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
-from langchain_core.tools import tool, InjectedToolCallId
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
-from typing import List, Annotated, Dict
+from typing import List, Annotated, Dict, Literal
 from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 from langgraph.types import Command
 from langgraph.prebuilt import InjectedState, InjectedStore
-from langgraph.types import Command
-from langgraph.prebuilt import InjectedState, InjectedStore
+
 
 from agent.rag_module import FaissSearch
 from agent.config import Settings
@@ -23,26 +20,24 @@ SCENARIO = FaissSearch(
 
 
 @tool
-def response_tool(
-    answer: Annotated[str, "текст, который нужно отправить пользователю"],
-) -> dict:
-    """Единый способ отдать ответ пользователю. Всегда вызывай этот инструмент для финального текста ответа на шаге."""
-    return {"answer": answer}
-
-
-@tool
-def question_user_tool(
-    question: Annotated[
-        str, "уточняющий вопрос, который необходимо задать пользователю."
+def user_interaction_tool(
+    text: Annotated[str, "текст для пользователя (либо ответ, либо вопрос)"],
+    mode: Annotated[
+        Literal["answer", "ask"],
+        "режим: 'answer' для ответа, 'ask' для уточняющего вопроса",
     ],
 ) -> dict:
-    """Инструмент для того, чтобы уточнить у пользователя, информацию, которой тебе не хватает.
-    Использовать только для уточняющих вопросов."""
-    # Print the question to the terminal
-    return {
-        "type": "ask_user",
-        "question": question,
-    }
+    """
+    Универсальный инструмент для взаимодействия с пользователем.
+    - Если mode='answer' → возвращается финальный ответ.
+    - Если mode='ask' → возвращается уточняющий вопрос.
+    """
+    if mode == "answer":
+        return {"answer": text}
+    elif mode == "ask":
+        return {"type": "ask_user", "question": text}
+    else:
+        raise ValueError("Неверный mode. Используй 'answer' или 'ask'.")
 
 
 @tool
@@ -90,7 +85,7 @@ def get_params_tool(
     """
     cands = SCENARIO.scenario_search(query, k=1)
 
-    parameters = {}
+    parameters = {"description": query}
     for param in cands[0].parameters:
         parameters[param.name] = {
             "info": f"Описание: {param.description}\nПримеры: {param.examples}\nПодсказка: {param.hint}\nЗапрос в стороннюю систему: {param.out_of_system}",
@@ -98,8 +93,9 @@ def get_params_tool(
         }
 
     msg_text = (
-        f"Success: extracted {len(parameters)} parameters "
-        f"for scenario '{getattr(cands[0], 'name', 'unknown')}'."
+        f"Успешно: извлечено {len(parameters)} параметр(а/ов) "
+        f"для сценария '{getattr(cands[0], 'name', 'unknown')}'."
+        f"Далее исползуй fill_params_tool"
     )
 
     return Command(
@@ -121,6 +117,7 @@ def fill_params_tool(
     ] = False,
 ) -> Command:
     """
+    Используется сразу после выбора сценария.
     Сканирует историю диалога и находит ранее указанные пользователем значения параметров (если они есть).
     Проверяет, какие еще параметры нужно запросить у пользователя, чтобы точно заполнить заявку полность.
     """
@@ -131,10 +128,13 @@ def fill_params_tool(
     print(f"MISSING: {missing}")
 
     if missing == []:
+        # TODO: doublecheck logic
         msg_text = f"Success: filled {len(params_to_fill)} parameters "
         return Command(
             update={
-                "messages": [ToolMessage(msg_text, tool_call_id=tool_call_id)],
+                "messages": [
+                    ToolMessage(msg_text, tool_call_id=tool_call_id, name="finalize")
+                ],
                 "ticket_active": False,
                 "awaiting_param": None,
             },
@@ -146,14 +146,13 @@ def fill_params_tool(
     for param in missing:
         print(params_to_fill)
         if params_to_fill[param]["value"] is None:
-            # ask user for it
 
             msg_text = (
-                f"Нужна информация от пользователя: необходимо значение параметры '{param}'."
+                f"Нужна информация от пользователя: необходимо значение параметра '{param}'."
                 f"Описание и примеры заполнения: {params_to_fill[param]['info']}"
             )
             return Command(
-                goto="ticket_reflect_node",
+                goto="ticket",
                 update={
                     "messages": [ToolMessage(msg_text, tool_call_id=tool_call_id)],
                     "awaiting_param": param,

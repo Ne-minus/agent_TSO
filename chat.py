@@ -96,21 +96,20 @@ if user_text:
     for step in stream:
         msg = step["messages"][-1]
 
-        # Пропускаем дубли
+        # Пропускаем дубли, если такие есть
         if msg in st.session_state.lc_messages:
             continue
 
         tool_name = getattr(msg, "name", "")
 
-        # --- Рефлексия (AIMessage): печатаем в консоль, в чат не выводим ---
+        # --- ВАЖНО: Ничего не печатаем для AIMessage (рефлексии/план/мысли) ---
         if isinstance(msg, AIMessage):
-            print("\n--- Reflection ---")
-            print(msg.content)
-            print("------------------\n")
+            # Храним в lc-истории для корректной работы графа, но в UI не показываем
             st.session_state.lc_messages.append(msg)
+            print(f"LOGS!!!\n\n{msg}")
             continue
 
-        # --- Финальный ответ ---
+        # --- Показываем только «финальный» ответ из response_tool ---
         if tool_name == "response_tool":
             data = json.loads(msg.content) if msg.content else {}
             answer = data.get("answer", "")
@@ -125,7 +124,7 @@ if user_text:
             st.session_state.lc_messages.append(msg)
             continue
 
-        # --- Вопрос на уточнение ---
+        # --- И только вопросы на уточнение из question_user_tool ---
         if tool_name == "question_user_tool":
             data = json.loads(msg.content) if msg.content else {}
             q = data.get("question") or data.get("text") or "Можете уточнить детали?"
@@ -140,7 +139,7 @@ if user_text:
             )
             st.session_state.lc_messages.append(msg)
             must_wait_for_user = True
-            continue
+            break
 
-        # --- Прочие сообщения ---
+        # Прочие системные/инструментальные сообщения — не выводим в чат
         st.session_state.lc_messages.append(msg)
