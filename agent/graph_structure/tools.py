@@ -67,7 +67,7 @@ def scenario_search_tool(
     query: Annotated[str, "фраза пользователя, по которой подбираем сценарии"],
     top_k: Annotated[int, "сколько кандидатов вернуть"] = 10,
 ) -> dict:
-    """Используется, если необходимо завести заявку о поломке или несиправности. Ищет сценарии через FAISS. Возвращает до top_k кандидатов с вопросами для развилки."""
+    """Используется, если необходимо завести заявку о поломке или несиправности. Ищет сценарии через FAISS. Возвращает до top_k кандидатов."""
     try:
         cands = SCENARIO.scenario_search(query, k=top_k)
     except Exception as e:
@@ -95,7 +95,7 @@ def get_params_tool(
     msg_text = (
         f"Успешно: извлечено {len(parameters)} параметр(а/ов) "
         f"для сценария '{getattr(cands[0], 'name', 'unknown')}'."
-        f"Далее исползуй fill_params_tool"
+        f"Далее используй validate_user_tool, чтобы уточнить, кто и из какого здания заводит заявку."
     )
 
     return Command(
@@ -104,6 +104,13 @@ def get_params_tool(
             "ticket_data": parameters,  # keep your structured state too
         },
     )
+
+
+@tool
+def validate_user_tool(
+    state: Annotated[dict, InjectedState] = None,
+    tool_call_id: Annotated[str, InjectedToolCallId] = None,
+) -> Command: ...
 
 
 @tool
