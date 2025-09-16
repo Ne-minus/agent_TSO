@@ -10,8 +10,8 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
     user_info: UserContext | UserContextNoLocation
-    ticket_active: bool
-    ticket_data: Optional[Dict]
+    ticket_active: bool = False
+    ticket_data: bool | Literal["complete"]
     awaiting_param: Optional[str]
 
     user_validated: bool | Literal["in progress"]

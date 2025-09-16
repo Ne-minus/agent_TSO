@@ -75,16 +75,21 @@ def scenario_search_tool(
 
 @tool
 def get_params_tool(
-    query: Annotated[str, "описание заявки в базе данных"],
+    id: Annotated[str, "ID заявки в базе знаний"],
     tool_call_id: Annotated[str, InjectedToolCallId],
 ) -> Command:
     """
     Находит необходимый сценарий, а затем извлекает список параметров, неоьходимых для заполнения заявки по данному сценарию.
     """
-    cands = SCENARIO.scenario_search(query, k=1)
+    scenario_raw = SCENARIO.find_by_ids(id)
+    print("CANDIDATES: ", scenario_raw)
 
-    parameters = {"description": query}
-    for param in cands[0].parameters:
+    # TODO: fix database management and creation
+
+    scenario_processed = scenario_raw[0].metadata["node"]
+
+    parameters = {}
+    for param in scenario_processed.parameters:
         parameters[param.name] = {
             "info": f"Описание: {param.description}\nПримеры: {param.examples}\nПодсказка: {param.hint}\nЗапрос в стороннюю систему: {param.out_of_system}",
             "value": None,
@@ -92,7 +97,7 @@ def get_params_tool(
 
     msg_text = (
         f"Успешно: извлечено {len(parameters)} параметр(а/ов) "
-        f"для сценария '{getattr(cands[0], 'name', 'unknown')}'."
+        f"для сценария '{getattr(scenario_processed._pretty_print(), 'name', 'unknown')}'."
         f"Далее используй validate_user_tool, чтобы уточнить, кто и из какого здания заводит заявку."
     )
 
@@ -124,6 +129,9 @@ def validate_user_tool(
     state: Annotated[dict, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ) -> Command:
+    """
+    Проверяет от чьего имени и на каком объекте охраны создается заявка.
+    """
     user = state.get("user_info")
     validation_status = state.get("user_validated")
     # change_to_name = state.get("change_to_name")
@@ -205,3 +213,7 @@ def fill_params_tool(
                     "awaiting_param": param,
                 },
             )
+
+
+GENERAL_TOOLS = [user_interaction_tool, kb_search_tool]
+TICKET_TOOLS = [scenario_search_tool, get_params_tool, fill_params_tool]

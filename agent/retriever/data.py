@@ -36,7 +36,7 @@ class ParameterSpecification(BaseModel):
     def description_examples(self) -> str:
         return f"{self.description}\n\n{self.examples}"
 
-    def __str__(self):
+    def _pretty_print(self):
         result = f"Параметр {self.name}: {self.description}\n\n"
         result += (
             "Примеры того, как может пользователь написать или заполнить это поле:\n"
@@ -52,7 +52,7 @@ class ExitScenarioPoint(BaseModel):
     examples: list[str]
     parameters: list[ParameterSpecification]
 
-    def __str__(self):
+    def _pretty_print(self):
         msg = "ЗАЯВКА\n"
         msg += f"{self.branch} - {self.scenario}\n"
         msg += f"Описание: {self.description}"

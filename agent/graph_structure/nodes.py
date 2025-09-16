@@ -1,8 +1,15 @@
 import json
 
-from typing import Set
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+from typing import Set, List, Sequence
+from langchain_core.messages import (
+    SystemMessage,
+    HumanMessage,
+    AIMessage,
+    ToolMessage,
+    BaseMessage,
+)
 from langchain_core.runnables import RunnableConfig
+from langgraph.types import interrupt
 
 from agent.graph_structure.state import AgentState
 from agent.prompts.prompts import (
@@ -42,6 +49,68 @@ GENERAL_TOOL_NAMES: Set[str] = {t.name for t in GENERAL_TOOLS if hasattr(t, "nam
 
 # Словарь доступных инструментов по имени
 TOOLS_BY_NAME = {t.name: t for t in (GENERAL_TOOLS + TICKET_TOOLS)}
+
+
+def _last_tool_message(state: AgentState):
+    for m in reversed(list(state.get("messages", []))):
+        if isinstance(m, ToolMessage):
+            return m
+    return None
+
+
+def _was_question_asked(state: AgentState) -> bool:
+    tm = _last_tool_message(state)
+    if not tm:
+        return False
+    data = tm.content
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except Exception:
+            return False
+    return (
+        isinstance(data, dict) and data.get("type") == "ask_user" and "question" in data
+    )
+
+
+def _extract_question(state: AgentState) -> str | None:
+    tm = _last_tool_message(state)
+    if not tm:
+        return None
+    data = tm.content
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except Exception:
+            return None
+    return data.get("question")
+
+
+def _sanitize_history_for_gigachat(
+    messages: Sequence[BaseMessage],
+) -> List[BaseMessage]:
+    """
+    ADDED: Удаляем 'сиротские' ToolMessage без парного AIMessage.tool_calls (иначе GigaChat 422).
+    """
+    valid_ids = set()
+    for m in messages:
+        if isinstance(m, AIMessage) and getattr(m, "tool_calls", None):
+            for tc in m.tool_calls:
+                _id = tc.get("id")
+                if _id:
+                    valid_ids.add(_id)
+
+    filtered: List[BaseMessage] = []
+    for m in messages:
+        if isinstance(m, ToolMessage):
+            if getattr(m, "tool_call_id", None) in valid_ids:
+                filtered.append(m)
+            else:
+                # пропускаем сироту
+                continue
+        else:
+            filtered.append(m)
+    return filtered
 
 
 def run_tools_and_wrap(ai_msg: AIMessage) -> list[ToolMessage]:
@@ -132,6 +201,19 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         return {"messages": [resp]}
 
 
+def await_user_node(state: AgentState, *_):
+    """
+    Останавливает граф, спрашивает пользователя и ждёт resume с {"answer": "..."}.
+    """
+    question = _extract_question(state) or "Пожалуйста, ответьте на вопрос."
+    payload = interrupt({"question": question})
+    answer = payload.get("answer")
+    if not answer:
+        return {}
+    # Превращаем ответ в HumanMessage и продолжаем граф.
+    return {"messages": [HumanMessage(answer)]}
+
+
 ### -----------------------
 ### EDGES
 ### -----------------------
@@ -168,8 +250,14 @@ def should_route_after_ticket_reflect(state: AgentState):
 
 
 def should_continue_after_ticket_tool(state: AgentState):
-    # если финализировали — end
-    for m in reversed(list(state["messages"])):
+    """
+    После выполнения тикетных инструментов:
+    - если задался вопрос пользователю → await_user
+    - если финализация → end
+    - иначе → вернуться в ticket
+    """
+    # финализация
+    for m in reversed(list(state.get("messages", []))):
         if isinstance(m, ToolMessage) and getattr(m, "name", "") in {
             "ticket_finalize",
             "finalize",
@@ -183,11 +271,21 @@ def should_continue_after_ticket_tool(state: AgentState):
             if isinstance(data, dict) and data.get("ready") is True:
                 return "end"
             break
-    # иначе крутим сценарий дальше
+
+    if _was_question_asked(state):
+        return "await_user"
+
     return "ticket_loop"
 
 
 def after_general_tool(state: AgentState):
-    last = state["messages"][-1]
-
+    """
+    После общих инструментов:
+    - если спросили пользователя → await_user
+    - если активен тикет → ticket
+    - иначе → reflect
+    """
+    # ADDED:
+    if _was_question_asked(state):
+        return "await_user"
     return "ticket" if state.get("ticket_active") else "reflect"

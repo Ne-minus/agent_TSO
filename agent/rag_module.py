@@ -40,7 +40,7 @@ class FaissSearch:
         return results
 
     def find_by_ids(self, ids: list[str]) -> list[Document]:
-        results = self.vector_store_faiss.get_by_ids(ids)
+        results = self.vector_store_faiss.get_by_ids([ids])
         return results
 
     def scenario_search(
@@ -60,7 +60,8 @@ class FaissSearch:
         for doc in top_k:
             node = doc.metadata["node"]
             if node not in exit_scenarios:
-                exit_scenarios.append(node)
+
+                exit_scenarios.append({"id": doc.id, "scenario": node})
 
         print(f"RESULTS: {top_k}")
 

@@ -36,8 +36,10 @@ model = model.bind_tools(tools_list)
 
 graph = get_graph(model)
 
-
-THREAD_ID = "cli-session-001"
+png = graph.get_graph().draw_mermaid_png(max_retries=5, retry_delay=2.0)
+with open("graph.png", "wb") as f:
+    f.write(png)
+print("Сохранено в graph.png")
 
 
 THREAD_ID = "cli-session-001"
@@ -72,7 +74,14 @@ while True:
     print(stream)
 
     for step in stream:
-        msg = step["messages"][-1]
+        if "messages" in step and step["messages"]:
+            msg = step["messages"][-1]
+            # msg может быть HumanMessage, AIMessage или SystemMessage
+            print(f"{msg.__class__.__name__}:", msg.content)
+        elif "events" in step:
+            print("Event:", step["events"])
+        else:
+            print("Step:", step)
         try:
             if msg in conversation["messages"]:
                 continue

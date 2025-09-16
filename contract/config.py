@@ -5,6 +5,7 @@ Most of the time you'll need the `Settings` variable with configuration specific
 
 You can run this .py file to print the config file and check if it is loaded correctly.
 """
+
 from pathlib import Path
 from pydantic import BaseModel
 from omegaconf import OmegaConf, DictConfig
@@ -12,11 +13,13 @@ from omegaconf import OmegaConf, DictConfig
 from typing import Literal
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 # Get the path to the yaml config file
 pwd = Path(__file__).parent.parent
-config_file = pwd / "config" / "config.yaml"
+config_file = pwd / "config.yaml"
+
 
 # ---------------------------------
 # The whole configuration structure
@@ -60,12 +63,12 @@ class System(BaseModel):
 class Models(BaseModel):
     embeddings: str
     llm_model_type: Literal[
-        "gemma3:4b", 
-        "gemma3:27b", 
-        "GigaChat-2-Max", 
-        "GigaChat-2-Pro", 
+        "gemma3:4b",
+        "gemma3:27b",
+        "GigaChat-2-Max",
+        "GigaChat-2-Pro",
         "qwen2.5:3b",
-        "qwen3:8b"
+        "qwen3:8b",
     ]
     llm_base_url: str
     language: Literal["ru", "en"]
@@ -87,19 +90,19 @@ class Config(BaseModel):
 # Load the yaml config file
 def _load_yaml_config(path: Path) -> DictConfig:
     """Load the yaml config file from the specific path.
-    
+
     This function using OmegaConf for yaml hierarchical structure opportunity.
-    
+
     Arguments
     ---------
     path: Path
         Path to the .yaml config file
-    
+
     Returns
     -------
     config: DictConfig
         The config dictionary
-    
+
     Raises
     ------
     FileNotFoundError
@@ -113,10 +116,10 @@ def _load_yaml_config(path: Path) -> DictConfig:
         logger.exception(message)
         raise FileNotFoundError(error, message) from error
 
-Settings = Config(**_load_yaml_config(config_file))
 
+Settings = Config(**_load_yaml_config(config_file))
 
 
 if __name__ == "__main__":
     # We can run this .py file to check if the Settings was loaded correctly
-    print(Settings.model_dump_json(indent = 2))
+    print(Settings.model_dump_json(indent=2))
