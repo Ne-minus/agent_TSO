@@ -38,6 +38,7 @@ def get_graph(model):
         {
             "use_general_tool": "use_general_tool",
             "use_ticket_tool": "use_ticket_tool",
+            "end": END,
         },
     )
 

@@ -92,13 +92,21 @@ if user_text:
     must_wait_for_user = False
 
     for step in stream:
-        msg = step["messages"][-1]
+        if "messages" in step and step["messages"]:
+            msg = step["messages"][-1]
+            # msg может быть HumanMessage, AIMessage или SystemMessage
+            print(f"{msg.__class__.__name__}:", msg.content)
+        elif "events" in step:
+            print("Event:", step["events"])
+        else:
+            print("Step:", step)
 
         # Пропускаем дубли, если такие есть
         if msg in st.session_state.lc_messages:
             continue
 
         tool_name = getattr(msg, "name", "")
+        print(tool_name)
 
         # --- ВАЖНО: Ничего не печатаем для AIMessage (рефлексии/план/мысли) ---
         if isinstance(msg, AIMessage):

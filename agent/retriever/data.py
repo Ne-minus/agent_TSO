@@ -37,11 +37,9 @@ class ParameterSpecification(BaseModel):
         return f"{self.description}\n\n{self.examples}"
 
     def _pretty_print(self):
-        result = f"Параметр {self.name}: {self.description}\n\n"
-        result += (
-            "Примеры того, как может пользователь написать или заполнить это поле:\n"
-        )
-        result += self.examples
+        result = f"Названине параметра для заполнения: {self.name}"
+        result += f"Описание: {self.description}\nПримеры: {self.examples}\nПодсказка: {self.hint}\nЗапрос в стороннюю систему: {self.out_of_system}"
+
         return result
 
 

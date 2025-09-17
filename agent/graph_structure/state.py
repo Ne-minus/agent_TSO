@@ -11,7 +11,7 @@ class AgentState(TypedDict):
 
     user_info: UserContext | UserContextNoLocation
     ticket_active: bool = False
-    ticket_data: bool | Literal["complete"]
+    ticket_data: bool | str
     awaiting_param: Optional[str]
 
     user_validated: bool | Literal["in progress"]
@@ -19,3 +19,4 @@ class AgentState(TypedDict):
         Literal["CREATE_TICKET", "SELECT_ASUN_BUILDING", "SELECT_INNER_CLIENT"]
     ]
     change_to_name: bool
+    missing_params: list | None = None

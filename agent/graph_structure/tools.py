@@ -1,15 +1,17 @@
 from langchain_core.tools import tool, InjectedToolCallId
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
-from typing import List, Annotated, Dict, Literal, Optional
-from bs4 import BeautifulSoup
+from typing import List, Annotated, Dict, Literal, Optional, Any
 from langchain_core.documents import Document
 from langgraph.types import Command
 from langgraph.prebuilt import InjectedState, InjectedStore
+from langchain_core.prompts import ChatPromptTemplate
+import json
 
 
 from agent.rag_module import FaissSearch
 from agent.config import Settings
 from agent.model.model_init import get_embeddings
+from agent.utils.extract_params import ParamExtractor
 from contract.schemas import UserValidation
 
 KNOWLEDGE_BASE = FaissSearch(
@@ -91,7 +93,8 @@ def get_params_tool(
     parameters = {}
     for param in scenario_processed.parameters:
         parameters[param.name] = {
-            "info": f"Описание: {param.description}\nПримеры: {param.examples}\nПодсказка: {param.hint}\nЗапрос в стороннюю систему: {param.out_of_system}",
+            "info": f"{param._pretty_print()}",
+            "class_mode": param,
             "value": None,
         }
 
@@ -144,7 +147,7 @@ def validate_user_tool(
             result.action = "SELECT_INNER_CLIENT"
             result.user_validated = "in progress"
             result.message = f"""У тебя есть ФИО пользователя: {result.user.name}, его табельный номер: {result.user.empid}. 
-                            Обязательно уточни, от своего имени он ее заводит или нет."""
+                            Обязательно уточни, от своего имени он ее заводит или нет. Задай пользователю вопрос: 'Вы заводите заявку от своего имени?'"""
 
             return _create_update(result)
             # else:
@@ -153,23 +156,23 @@ def validate_user_tool(
             #                     Он заводит заявку от своего имени, далее провалидируй адрес."""
 
         case "in progress":
+            result.action = "SELECT_ASUN_BUILDING"
+            result.user_validated = True
             if hasattr(user, "workPlaceLocation"):
-                ...
+                result.message = f"""У тебя есть адрес, где находится пользователь: {result.user.workPlaceLocation}. 
+                            Обязательно уточни, на этом ли объекте у него случилась поломка. Задай пользователю вопрос: 'Вы находитесь по адресу {str(result.user.workPlaceLocation)}?'"""
             else:
-                ...
+                result.message = f"""У тебя нет адреса, гле находится пользователь. 
+                            Обязательно уточни, на каком объекте у него случилась поломка. Задай пользователю вопрос: 'По какому адресу вы находитесь?'"""
+
         case True:
             ...
 
 
 @tool
 def fill_params_tool(
-    # memory: Annotated[dict, InjectedStore] = None,
     state: Annotated[dict, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
-    check_history: Annotated[
-        bool,
-        "Нужно ли проверять историю, если ранее проверка уже производилась, значение False",
-    ] = False,
 ) -> Command:
     """
     Используется сразу после выбора сценария.
@@ -177,9 +180,21 @@ def fill_params_tool(
     Проверяет, какие еще параметры нужно запросить у пользователя, чтобы точно заполнить заявку полность.
     """
     params_to_fill = state.get("ticket_data")
-    missing = [
-        param for param in params_to_fill if params_to_fill[param]["value"] is None
-    ]
+    exctractor = ParamExtractor(state.get("llm"), state)
+    data_from_history = exctractor.run_exctraction()
+    print("FROM HISTORY: ", data_from_history)
+
+    for param, value in data_from_history.items():
+        if not params_to_fill[param]["value"]:
+            params_to_fill[param]["value"] = value
+
+    if not state.get("missing_params"):
+        missing = [
+            param for param in params_to_fill if params_to_fill[param]["value"] is None
+        ]
+    else:
+        missing = state.get("missing_params")
+
     print(f"MISSING: {missing}")
 
     if missing == []:
@@ -190,13 +205,10 @@ def fill_params_tool(
                 "messages": [
                     ToolMessage(msg_text, tool_call_id=tool_call_id, name="finalize")
                 ],
-                "ticket_active": False,
+                "ticket_active": "complete",
                 "awaiting_param": None,
             },
         )
-
-    # if check_history:
-    #     params_before = _history(params_to_fill, memory)
 
     for param in missing:
         print(params_to_fill)
@@ -211,6 +223,7 @@ def fill_params_tool(
                 update={
                     "messages": [ToolMessage(msg_text, tool_call_id=tool_call_id)],
                     "awaiting_param": param,
+                    "missing_params": missing,
                 },
             )
 

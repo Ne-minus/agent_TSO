@@ -86,33 +86,6 @@ def _extract_question(state: AgentState) -> str | None:
     return data.get("question")
 
 
-def _sanitize_history_for_gigachat(
-    messages: Sequence[BaseMessage],
-) -> List[BaseMessage]:
-    """
-    ADDED: Удаляем 'сиротские' ToolMessage без парного AIMessage.tool_calls (иначе GigaChat 422).
-    """
-    valid_ids = set()
-    for m in messages:
-        if isinstance(m, AIMessage) and getattr(m, "tool_calls", None):
-            for tc in m.tool_calls:
-                _id = tc.get("id")
-                if _id:
-                    valid_ids.add(_id)
-
-    filtered: List[BaseMessage] = []
-    for m in messages:
-        if isinstance(m, ToolMessage):
-            if getattr(m, "tool_call_id", None) in valid_ids:
-                filtered.append(m)
-            else:
-                # пропускаем сироту
-                continue
-        else:
-            filtered.append(m)
-    return filtered
-
-
 def run_tools_and_wrap(ai_msg: AIMessage) -> list[ToolMessage]:
     """Выполнить все tool_calls из AIMessage и вернуть список ToolMessage."""
     tool_msgs: list[ToolMessage] = []
@@ -179,26 +152,35 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     if state.get("awaiting_param") is not None:
         print("WE FILL PARAMS")
 
+        print("Now we check missing")
+        if state.get("missing_params"):
+
+            messages += [
+                f"\nСейчас нужно заполнить параметр {state.get('awaiting_param')} через user_interaction_tool. Далее вызови fill_param_tools(), так как  остались незаполненными другие необходимые параметры. Процесс заполнения заявки завершать НЕЛЬЗЯ!\n"
+            ]
+
         resp = model.bind_tools(TICKET_TOOLS + GENERAL_TOOLS).invoke(
             [SystemMessage(get_formatting_prompt())] + messages, config
         )
-        if resp == "None":
-            resp = None
 
         parameters_to_fill = state.get("ticket_data")
-        parameters_to_fill[state.get("awaiting_param")]["value"] = resp
+        # parameters_to_fill[state.get("awaiting_param")]["value"] = resp
+        print("OUR PARAMETERS FILLING: ", parameters_to_fill)
+        new_missing = state.get("missing_params")
+        if new_missing:
+            new_missing.pop(0)
         return {
             "messages": [resp],
             "ticket_active": True,
             "ticket_data": parameters_to_fill,
+            "missing_params": new_missing,
         }
 
-    else:
-        resp = model.bind_tools(TICKET_TOOLS + GENERAL_TOOLS).invoke(
-            [system] + messages, config
-        )
+    resp = model.bind_tools(TICKET_TOOLS + GENERAL_TOOLS).invoke(
+        [system] + messages, config
+    )
 
-        return {"messages": [resp]}
+    return {"messages": [resp]}
 
 
 def await_user_node(state: AgentState, *_):
