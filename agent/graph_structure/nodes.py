@@ -21,6 +21,7 @@ from agent.prompts.prompts import (
 
 from agent.graph_structure.tools import (
     user_interaction_tool,
+    ask_user_with_action_tool,
     kb_search_tool,
     scenario_search_tool,
     get_params_tool,
@@ -119,6 +120,7 @@ def reflect_node(state: AgentState, config: RunnableConfig, model):
     """
     General reflection on whether we need QA or Ticket functional.
     """
+    print("ACCIDENTALLY HERE")
     system = SystemMessage(_compose_prompt())
     resp = model.bind_tools(GENERAL_TOOLS + TICKET_TOOLS).invoke(
         [system] + list(state["messages"]), config
@@ -137,7 +139,41 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     system = SystemMessage(_compose_prompt(if_ticket=True))
     print(f"WE ABOUT TO FILL PARAMS: {state.get("awaiting_param") }")
 
-    if state.get("awaiting_param") is not None:
+    print(
+        "IMPORTANT CONDITIONS: ",
+        state.get("parameters_to_val"),
+        state.get("user_validated"),
+    )
+    if state.get("parameters_to_val") != [] and state.get("user_validated") == False:
+
+        mixture = {
+            "SELECT_ASUN_BUILDING": "По какому адресу вы создаете заявку?",
+            "SELECT_INNER_CLIENT": "Вы заводите заявку от своего имени?",
+        }
+
+        params_to_val = state.get("parameters_to_val")
+        user_validated = state.get("user_validated")
+        for param in params_to_val:
+            messages += [
+                f"\nСейчас нужно провалидировать данные пользователя. Для этого вызови ask_user_with_action_tool(text='{mixture[param]}', action='{param}'). Нельзя продролжать заполнение заявки."
+            ]
+
+            print("ASK FOR ACTION: ", messages[-1])
+
+            resp = model.bind_tools([ask_user_with_action_tool]).invoke(
+                [system] + messages + messages, config
+            )
+            params_to_val.pop(0)
+            if params_to_val == []:
+                user_validated = True
+
+            return {
+                "messages": [resp],
+                "parameters_to_val": params_to_val,
+                # "user_validated": user_validated,
+            }
+
+    elif state.get("awaiting_param") is not None:
         print("WE FILL PARAMS")
 
         print("Now we check missing")
@@ -147,7 +183,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
                 f"\nСейчас нужно заполнить параметр {state.get('awaiting_param')} через user_interaction_tool. Далее вызови fill_param_tools(), так как  остались незаполненными другие необходимые параметры. Процесс заполнения заявки завершать НЕЛЬЗЯ!\n"
             ]
 
-        resp = model.bind_tools(TICKET_TOOLS + GENERAL_TOOLS).invoke(
+        resp = model.bind_tools(TICKET_TOOLS[:-1] + GENERAL_TOOLS).invoke(
             [SystemMessage(get_formatting_prompt())] + messages, config
         )
 
@@ -164,16 +200,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             "missing_params": new_missing,
         }
 
-    if state.get("user_validated") == "in progress":
-        messages += [
-            f"\nЕще не все параметры пользователя проверены. Вызови далее validate_user_tool.\n"
-        ]
-    elif state.get("user_validated"):
-        messages += [
-            f"\nВсе параметры пользователя проверены, можно продолжить заведение заявки. "
-        ]
-
-    resp = model.bind_tools(TICKET_TOOLS + GENERAL_TOOLS).invoke(
+    resp = model.bind_tools(TICKET_TOOLS[:-1] + GENERAL_TOOLS).invoke(
         [system] + messages, config
     )
 
@@ -254,7 +281,7 @@ def should_continue_after_ticket_tool(state: AgentState):
     if _was_question_asked(state):
         return "await_user"
 
-    return "ticket_loop"
+    return "ticket"
 
 
 def after_general_tool(state: AgentState):
@@ -267,4 +294,4 @@ def after_general_tool(state: AgentState):
     # ADDED:
     if _was_question_asked(state):
         return "await_user"
-    return "ticket" if state.get("ticket_active") else "reflect"
+    return "ticket"

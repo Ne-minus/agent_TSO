@@ -23,11 +23,23 @@ SCENARIO = FaissSearch(
 
 
 @tool
+def ask_user_with_action_tool(
+    text: Annotated[str, "Вопрос пользователю"],
+    action: Annotated[str, "Название параметра для стейта"],
+) -> dict:
+    """
+    Инструмент для уточнения у пользователя параметров.
+    """
+    print("WE ASK FOR ACTION: ", action)
+    return {"type": "ask_user", "question": text, "action": action}
+
+
+@tool
 def user_interaction_tool(
     text: Annotated[str, "текст для пользователя (либо ответ, либо вопрос)"],
     mode: Annotated[
         Literal["answer", "ask"],
-        "режим: 'answer' для ответа, 'ask' для уточняющего вопроса",
+        "режим: 'answer' для ответа, 'ask' для уточняющего вопроса, 'action' для уточнения параметров пользователя.",
     ],
 ) -> dict:
     """
@@ -39,8 +51,9 @@ def user_interaction_tool(
         return {"answer": text}
     elif mode == "ask":
         return {"type": "ask_user", "question": text}
+
     else:
-        raise ValueError("Неверный mode. Используй 'answer' или 'ask'.")
+        raise ValueError("Неверный mode. Используй 'answer', 'ask'.")
 
 
 @tool
@@ -72,7 +85,11 @@ def scenario_search_tool(
         cands = SCENARIO.scenario_search(query, k=top_k)
     except Exception as e:
         return {"found": False, "error": f"search_failed: {e}"}
-    return {"found": bool(cands), "candidates": cands}
+    return {
+        "messages": "После того, как подтвердишь у пользователя сценарий, вызови обязательно get_params_tool()",
+        "found": bool(cands),
+        "candidates": cands,
+    }
 
 
 @tool
@@ -108,6 +125,8 @@ def get_params_tool(
         update={
             "messages": [ToolMessage(msg_text, tool_call_id=tool_call_id)],
             "ticket_data": parameters,  # keep your structured state too
+            "user_validated": False,
+            "ticket_active": True,
         },
     )
 
@@ -137,38 +156,52 @@ def validate_user_tool(
     """
     print("WE CHECK USER INFO")
     user = state.get("user_info")
-    print(user)
+    print(type(user))
     validation_status = state.get("user_validated")
     print(validation_status == False)
 
-    result = UserValidation(user=user, tool_call_id=tool_call_id)
-    print(result)
-
     if validation_status == False:
         print("NO USER CHECKED")
-        result.action = "SELECT_INNER_CLIENT"
-        result.user_validated = "in progress"
-        result.message = f"""У тебя есть ФИО пользователя: {result.user.name}, его табельный номер: {result.user.empid}. 
-                        Обязательно уточни, от своего имени он ее заводит или нет. Задай пользователю вопрос: 'Вы заводите заявку от своего имени?'"""
+        action = "SELECT_INNER_CLIENT"
+        user_validated = "in progress"
+        message = ToolMessage(
+            {"type": "ask_user", "question": "Вы заводите заявку от своего имени?"},
+            name="user_interaction_tool",
+            tool_call_id=tool_call_id,
+        )
 
     elif validation_status == "in progress":
         print("USER CHECKED, ADDRESS_NO")
-        result.action = "SELECT_ASUN_BUILDING"
-        result.user_validated = "in progress"
+        action = "SELECT_ASUN_BUILDING"
+        user_validated = "in progress"
         if user.get("workPlaceLocation"):
-            result.message = f"""У тебя есть адрес, где находится пользователь: {result.user.workPlaceLocation}. 
-                        Обязательно уточни, на этом ли объекте у него случилась поломка. Задай пользователю вопрос: 'Вы находитесь по адресу {str(result.user.workPlaceLocation)}?'"""
-        else:
-            result.message = f"""У тебя нет адреса, где находится пользователь. 
-                        Обязательно уточни, на каком объекте у него случилась поломка. Задай пользователю вопрос: 'По какому адресу вы находитесь?'"""
+            message = ToolMessage(
+                {"type": "ask_user", "question": "Вы заводите заявку от своего имени?"},
+                name="user_interaction_tool",
+                tool_call_id=tool_call_id,
+            )
+            message = ToolMessage(
+                {"type": "ask_user", "question": "По какому адресу вы находитесь?"},
+                name="user_interaction_tool",
+                tool_call_id=tool_call_id,
+            )
     elif validation_status:
-        result.action = "SELECT_ASUN_BUILDING"
-        result.user_validated = None
-        result.message = (
-            f"""Все параметры собраны, нужно продолжить заполнение заявки.'"""
+        action = "SELECT_ASUN_BUILDING"
+        user_validated = None
+        message = ToolMessage(
+            {"type": "answer", "question": "Все параметры заполнены."},
+            name="user_interaction_tool",
+            tool_call_id=tool_call_id,
         )
-    print(_create_update(result))
-    return _create_update(result)
+
+    print(action)
+    return Command(
+        update={
+            "messages": [message],
+            "user_validated": user_validated,
+            "action": action,
+        },
+    )
 
 
 @tool
@@ -207,7 +240,6 @@ def fill_params_tool(
                 "messages": [
                     ToolMessage(msg_text, tool_call_id=tool_call_id, name="finalize")
                 ],
-                "ticket_active": False,
                 "awaiting_param": None,
             },
         )
@@ -226,6 +258,7 @@ def fill_params_tool(
                     "messages": [ToolMessage(msg_text, tool_call_id=tool_call_id)],
                     "awaiting_param": param,
                     "missing_params": missing,
+                    "ticket_active": False,
                 },
             )
 
@@ -235,5 +268,6 @@ TICKET_TOOLS = [
     scenario_search_tool,
     get_params_tool,
     fill_params_tool,
-    validate_user_tool,
+    ask_user_with_action_tool,
+    # validate_user_tool,
 ]

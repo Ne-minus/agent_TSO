@@ -258,7 +258,7 @@ class UserContext(BaseModel):
 
 class UserValidation(BaseModel):
     message: str
-    user: UserContext
+    user: Dict
     user_validated: Optional[bool | Literal["in progress"]]
     action: Optional[
         Literal["CREATE_TICKET", "SELECT_ASUN_BUILDING", "SELECT_INNER_CLIENT"]

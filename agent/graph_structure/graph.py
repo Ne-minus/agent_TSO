@@ -21,7 +21,6 @@ def get_graph(model):
     g = StateGraph(AgentState)
 
     # Синие узлы (рефлексия)
-    g.add_node("reflect", partial(reflect_node, model=model))
     g.add_node("ticket", partial(ticket_reflect_node, model=model))
     g.add_node("await_user", await_user_node)
 
@@ -29,18 +28,18 @@ def get_graph(model):
     g.add_node("use_general_tool", ToolNode(GENERAL_TOOLS))
     g.add_node("use_ticket_tool", ToolNode(TICKET_TOOLS))
 
-    g.set_entry_point("reflect")
+    g.set_entry_point("ticket")
 
     # После reflect → к инструментам (или ticket-инструментам) по решению
-    g.add_conditional_edges(
-        "reflect",
-        should_route_after_reflect,
-        {
-            "use_general_tool": "use_general_tool",
-            "use_ticket_tool": "use_ticket_tool",
-            "end": END,
-        },
-    )
+    # g.add_conditional_edges(
+    #     "reflect",
+    #     should_route_after_reflect,
+    #     {
+    #         "use_general_tool": "use_general_tool",
+    #         "use_ticket_tool": "use_ticket_tool",
+    #         "end": END,
+    #     },
+    # )
 
     # После ticket → к тикетным инструментам
     g.add_conditional_edges(
@@ -58,7 +57,7 @@ def get_graph(model):
         "use_ticket_tool",
         should_continue_after_ticket_tool,
         {
-            "ticket_loop": "ticket",
+            "ticket": "ticket",
             "await_user": "await_user",  # ADDED
             "end": END,
         },
@@ -71,7 +70,6 @@ def get_graph(model):
         {
             "await_user": "await_user",  # ADDED (раньше было END — ломало историю)
             "ticket": "ticket",
-            "reflect": "reflect",
         },
     )
 

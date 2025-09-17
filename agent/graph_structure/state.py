@@ -16,6 +16,7 @@ class AgentState(TypedDict):
     awaiting_param: Optional[str]
 
     user_validated: bool | str
+    parameters_to_val: list[str]
     action: Optional[
         Literal["CREATE_TICKET", "SELECT_ASUN_BUILDING", "SELECT_INNER_CLIENT"]
     ]
