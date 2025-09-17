@@ -9,14 +9,14 @@ class AgentState(TypedDict):
     # История диалога (редьюсер)
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
-    user_info: UserContext | UserContextNoLocation
+    user_info: Dict
+    current_building: Dict
     ticket_active: bool = False
     ticket_data: bool | str
     awaiting_param: Optional[str]
 
-    user_validated: bool | Literal["in progress"]
+    user_validated: bool | str
     action: Optional[
         Literal["CREATE_TICKET", "SELECT_ASUN_BUILDING", "SELECT_INNER_CLIENT"]
     ]
-    change_to_name: bool
     missing_params: list | None = None

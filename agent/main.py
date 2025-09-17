@@ -1,17 +1,40 @@
 from typing import Any, Dict, Optional, Tuple, AsyncGenerator, Literal
 from uuid import uuid4
+from dotenv import load_dotenv
+import json
 
-from langchain_core.messages import HumanMessage, BaseMessage
+from langchain_core.messages import HumanMessage, BaseMessage, AIMessage, ToolMessage
 from agent.graph_structure.state import AgentState
-from agent.graph_structure.graph import build_graph
-from contract.schemas import UserContext, AsunEntry, FinalAnswer
+from agent.graph_structure.tools import (
+    user_interaction_tool,
+    kb_search_tool,
+    scenario_search_tool,
+    get_params_tool,
+    fill_params_tool,
+    validate_user_tool,
+)
+from agent.graph_structure.graph import get_graph
+from agent.model.model_init import get_llm
+from contract.schemas import (
+    UserContext,
+    AsunEntry,
+    TicketData,
+    MessageToAgentRs,
+    Action,
+    CreateNewDialogRs,
+    Name,
+)
 
 # если в build_graph уже вшит checkpointer — просто вызываем его.
-GRAPH = build_graph()
 
 
 def _thread_config(thread_id: str) -> Dict[str, Any]:
     return {"configurable": {"thread_id": thread_id}}
+
+
+def _combine_info_for_ticket(
+    user_info: Dict, current_building: Dict, ticket_data: Dict
+) -> TicketData: ...
 
 
 class AIAgent:
@@ -23,62 +46,129 @@ class AIAgent:
     """
 
     def __init__(self):
-        self._graph = GRAPH
+        tools_list = [
+            user_interaction_tool,
+            kb_search_tool,
+            scenario_search_tool,
+            get_params_tool,
+            fill_params_tool,
+            validate_user_tool,
+        ]
+        self.llm = get_llm().bind_tools(tools_list)
 
-    def _finalize(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        # Берём последнее ассистентское сообщение как финальный ответ
+        self._graph = get_graph(self.llm)
+
+    def _maybe_parse_json(self, text: str):
+        t = text.strip()
+        if not t:
+            return None
+        if not (t.startswith("{") or t.startswith("[")):
+            return None
+        try:
+            text = json.loads(t)
+            text = text.get("question") or text.get("answer") or ""
+            return text
+        except Exception:
+            return None
+
+    def _normalize_result(self, msg: BaseMessage) -> str:
+        print("RUINING MESSAGE: ", msg)
+        print(msg.content)
+        return self._maybe_parse_json(msg.content)
+
+    def _finalize(self, state: AgentState) -> MessageToAgentRs:
         msg: BaseMessage = state["messages"][-1]
-        text = getattr(msg, "content", "") if msg else ""
+        text = self._normalize_result(msg) if msg else ""
         # Готовим Action и ticketData из стейта
         # (если твои узлы пишут action в другое место — подстрой тут)
-        action = state.get("action")
-        ticket = state.get("ticket_data")
-        return {
-            "message": text,
-            "action": action,
-            "ticketData": ticket,
-        }
+        raw_action = state.get("action")
+        action = None
+        ticket = None
+        if raw_action == "CREATE_TICKET":
+            action = Action(raw_action)
+            ticket = _combine_info_for_ticket(
+                state.get("user_info"),
+                state.get("current_building"),
+                state.get("ticket_data"),
+            )
+        return MessageToAgentRs(message=text, action=action, ticketData=ticket)
 
     def create_conversation(
         self,
-        user_text: str,
-        context: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[str, Dict[str, Any]]:
+        user: UserContext,
+    ) -> CreateNewDialogRs:
         dialog_id = str(uuid4())
         config = _thread_config(dialog_id)
 
         init_state: AgentState = {
-            "messages": [HumanMessage(content=user_text)],
-            "user_info": context,  # UserContext | UserContextNoLocation
-            "action": Optional[
-                Literal["GiveAsunObject", "GiveContact", "CreateTicket"]
-            ],
+            "user_info": user,
+            "current_building": None,
+            "action": None,
             "ticket_active": False,
             "ticket_data": None,
             "awaiting_param": None,
+            "missing_params": None,
+            "user_validated": False,
         }
-        if metadata:
-            init_state["metadata"] = metadata
 
-        result_state = self._graph.invoke(init_state, config=config)
-        final = self._finalize(result_state)
-        return dialog_id, final
+        self._graph.update_state(config, init_state)
+
+        init_message = f"Здравствуйте! Чем могу помочь?"
+        self._graph.update_state(
+            config, {"messages": [AIMessage(content=init_message)]}
+        )
+        return CreateNewDialogRs(dialogId=dialog_id, message=init_message)
 
     def continue_conversation(
         self,
         dialog_id: str,
         user_text: str,
         context: UserContext | AsunEntry | None = None,
-    ) -> FinalAnswer:
+    ) -> MessageToAgentRs:
         config = _thread_config(dialog_id)
-        # достаточно передать только новое HumanMessage — редьюсер add_messages сам смёрджит историю
         inputs: Dict[str, Any] = {"messages": [HumanMessage(content=user_text)]}
 
-        if isinstance(context, UserContext):
-            inputs["user_info"] = context
-        elif isinstance(context, AsunEntry):
-            inputs["user_info"].workPlaceLocation = context
+        if context is not None:
+            ctx = context.model_dump()
+
+            if isinstance(context, UserContext):
+                self._graph.update_state(config, {"user_info": ctx})
+
+            elif isinstance(context, AsunEntry):
+                self._graph.update_state(config, {"current_building": ctx})
 
         result_state = self._graph.invoke(inputs, config=config)
         return self._finalize(result_state)
+
+
+if __name__ == "__main__":
+
+    # Load enviroment
+    load_dotenv()
+
+    # Initialization
+    agent = AIAgent()
+
+    user = UserContext(
+        name=Name(lastname="Денисова", firstname="Анна", middlename="Александровна"),
+        empid="22334455",
+        departamentCode="10323702",
+        departamentName="Группа разработки",
+    )
+
+    building = AsunEntry(
+        asunId="77", addr="г. Москва, пр-кт Кутузовский, 32 к3 стрБ, Б.05.05, Б.05.05.1"
+    )
+
+    # Handshake - get a conversation id
+    answer = agent.create_conversation(user)
+    dialog_id = answer.dialogId
+    print(answer.message)
+
+    # Conversation loop
+    while True:
+        query = input("Ваше сообщение: ")
+        answer = agent.continue_conversation(str(dialog_id), query)
+
+        print("Агент: ", answer.message)
+        print()

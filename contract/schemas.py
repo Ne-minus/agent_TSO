@@ -344,7 +344,7 @@ class FinalAnswer(BaseModel):
     action: (
         Literal["CREATE_TICKET", "SELECT_ASUN_BUILDING", "SELECT_INNER_CLIENT"] | None
     ) = None
-    ticketData: AsunEntry | None = None
+    ticketData: TicketData | None = None
 
-    def model_post_init(self, context):
-        self.message = self.message.replace("\\n", Settings.api.next_line_placeholder)
+    # def model_post_init(self, context):
+    #     self.message = self.message.replace("\\n", Settings.api.next_line_placeholder)

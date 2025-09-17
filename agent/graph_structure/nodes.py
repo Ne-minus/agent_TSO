@@ -9,7 +9,7 @@ from langchain_core.messages import (
     BaseMessage,
 )
 from langchain_core.runnables import RunnableConfig
-from langgraph.types import interrupt
+from langgraph.types import interrupt, Command
 
 from agent.graph_structure.state import AgentState
 from agent.prompts.prompts import (
@@ -25,23 +25,11 @@ from agent.graph_structure.tools import (
     scenario_search_tool,
     get_params_tool,
     fill_params_tool,
+    validate_user_tool,
+    GENERAL_TOOLS,
+    TICKET_TOOLS,
 )
 
-GENERAL_TOOLS = [
-    user_interaction_tool,
-    kb_search_tool,
-]
-
-TICKET_TOOLS = [
-    scenario_search_tool,
-    get_params_tool,
-    fill_params_tool,
-    # scenario_get_tool,
-    # ticket_select_scenario,
-    # ticket_sync_from_history,
-    # ticket_process_input,
-    # ticket_finalize,
-]
 
 TICKET_TOOL_NAMES: Set[str] = {t.name for t in TICKET_TOOLS if hasattr(t, "name")}
 GENERAL_TOOL_NAMES: Set[str] = {t.name for t in GENERAL_TOOLS if hasattr(t, "name")}
@@ -175,6 +163,15 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             "ticket_data": parameters_to_fill,
             "missing_params": new_missing,
         }
+
+    if state.get("user_validated") == "in progress":
+        messages += [
+            f"\nЕще не все параметры пользователя проверены. Вызови далее validate_user_tool.\n"
+        ]
+    elif state.get("user_validated"):
+        messages += [
+            f"\nВсе параметры пользователя проверены, можно продолжить заведение заявки. "
+        ]
 
     resp = model.bind_tools(TICKET_TOOLS + GENERAL_TOOLS).invoke(
         [system] + messages, config

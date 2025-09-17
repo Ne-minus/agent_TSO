@@ -32,7 +32,7 @@ def user_interaction_tool(
 ) -> dict:
     """
     Универсальный инструмент для взаимодействия с пользователем.
-    - Если mode='answer' → возвращается финальный ответ.
+    - Если mode='answer' → возвращается финальный ответ в формате словаря.
     - Если mode='ask' → возвращается уточняющий вопрос.
     """
     if mode == "answer":
@@ -135,38 +135,40 @@ def validate_user_tool(
     """
     Проверяет от чьего имени и на каком объекте охраны создается заявка.
     """
+    print("WE CHECK USER INFO")
     user = state.get("user_info")
+    print(user)
     validation_status = state.get("user_validated")
-    # change_to_name = state.get("change_to_name")
+    print(validation_status == False)
 
     result = UserValidation(user=user, tool_call_id=tool_call_id)
+    print(result)
 
-    match validation_status:
-        case False:
-            # if change_to_name:
-            result.action = "SELECT_INNER_CLIENT"
-            result.user_validated = "in progress"
-            result.message = f"""У тебя есть ФИО пользователя: {result.user.name}, его табельный номер: {result.user.empid}. 
-                            Обязательно уточни, от своего имени он ее заводит или нет. Задай пользователю вопрос: 'Вы заводите заявку от своего имени?'"""
+    if validation_status == False:
+        print("NO USER CHECKED")
+        result.action = "SELECT_INNER_CLIENT"
+        result.user_validated = "in progress"
+        result.message = f"""У тебя есть ФИО пользователя: {result.user.name}, его табельный номер: {result.user.empid}. 
+                        Обязательно уточни, от своего имени он ее заводит или нет. Задай пользователю вопрос: 'Вы заводите заявку от своего имени?'"""
 
-            return _create_update(result)
-            # else:
-            #     result.user_validated = "in progress"
-            #     result.message = f"""У тебя есть ФИО пользователя: {result.user.name}, его табельный номер: {result.user.empid}.
-            #                     Он заводит заявку от своего имени, далее провалидируй адрес."""
-
-        case "in progress":
-            result.action = "SELECT_ASUN_BUILDING"
-            result.user_validated = True
-            if hasattr(user, "workPlaceLocation"):
-                result.message = f"""У тебя есть адрес, где находится пользователь: {result.user.workPlaceLocation}. 
-                            Обязательно уточни, на этом ли объекте у него случилась поломка. Задай пользователю вопрос: 'Вы находитесь по адресу {str(result.user.workPlaceLocation)}?'"""
-            else:
-                result.message = f"""У тебя нет адреса, гле находится пользователь. 
-                            Обязательно уточни, на каком объекте у него случилась поломка. Задай пользователю вопрос: 'По какому адресу вы находитесь?'"""
-
-        case True:
-            ...
+    elif validation_status == "in progress":
+        print("USER CHECKED, ADDRESS_NO")
+        result.action = "SELECT_ASUN_BUILDING"
+        result.user_validated = "in progress"
+        if user.get("workPlaceLocation"):
+            result.message = f"""У тебя есть адрес, где находится пользователь: {result.user.workPlaceLocation}. 
+                        Обязательно уточни, на этом ли объекте у него случилась поломка. Задай пользователю вопрос: 'Вы находитесь по адресу {str(result.user.workPlaceLocation)}?'"""
+        else:
+            result.message = f"""У тебя нет адреса, где находится пользователь. 
+                        Обязательно уточни, на каком объекте у него случилась поломка. Задай пользователю вопрос: 'По какому адресу вы находитесь?'"""
+    elif validation_status:
+        result.action = "SELECT_ASUN_BUILDING"
+        result.user_validated = None
+        result.message = (
+            f"""Все параметры собраны, нужно продолжить заполнение заявки.'"""
+        )
+    print(_create_update(result))
+    return _create_update(result)
 
 
 @tool
@@ -205,7 +207,7 @@ def fill_params_tool(
                 "messages": [
                     ToolMessage(msg_text, tool_call_id=tool_call_id, name="finalize")
                 ],
-                "ticket_active": "complete",
+                "ticket_active": False,
                 "awaiting_param": None,
             },
         )
@@ -229,4 +231,9 @@ def fill_params_tool(
 
 
 GENERAL_TOOLS = [user_interaction_tool, kb_search_tool]
-TICKET_TOOLS = [scenario_search_tool, get_params_tool, fill_params_tool]
+TICKET_TOOLS = [
+    scenario_search_tool,
+    get_params_tool,
+    fill_params_tool,
+    validate_user_tool,
+]

@@ -6,10 +6,7 @@ from contract.schemas import (
     CreateNewDialogRs,
     MessageToAgentRs,
     MessageToAgentRq,
-    Action,
 )
-
-from contract.schemas import User
 
 from agent.main import AIAgent
 
@@ -26,13 +23,7 @@ async def dialogs(
         ..., description="Уникальный идемнтификатор запроса. Ключ идепотентности"
     ),
 ):
-    user = User(
-        first_name=user_context.name.firstname,
-        last_name=user_context.name.lastname,
-        middle_name=user_context.name.middlename,
-        tabel=user_context.empid,
-    )
-    response = agent.create_conversation(user)
+    response = agent.create_conversation(user_context)
     return response
 
 
@@ -51,12 +42,5 @@ async def dialog_by_id(
     response = agent.continue_conversation(
         str(dialogId), message.message, context=message.context
     )
-    action = None
-    if response.action:
-        action = Action(response.action)
-    response = MessageToAgentRs(
-        message=response.message,
-        action=action,
-        ticketData=response.ticketData,
-    )
+
     return response
