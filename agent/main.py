@@ -100,11 +100,11 @@ class AIAgent:
         ticket_data = None
         if state_action == "CREATE_TICKET":
             action = state_action
+            form = Formalize()
+            ticket_data = form.create_ticket(state)
 
         if action:
             action = Action(action)
-            form = Formalize()
-            ticket_data = form.create_ticket(state)
 
         return MessageToAgentRs(message=text, action=action, ticketData=ticket_data)
 

@@ -61,8 +61,8 @@ class Formalize:
         request = ScenarioRequest(
             user=state.get("user_info"),
             requester=state.get("real_requester"),
-            branch=state.get("stk_instr")["branch"],
-            scenario=state.get("stk_instr")["scenario"],
+            branch=state.get("chosen_scenario")["branch"],
+            scenario=state.get("chosen_scenario")["scenario"],
             parameters=state.get("ticket_data"),
             comment=state._get_comment(),
         )

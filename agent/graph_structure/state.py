@@ -23,7 +23,7 @@ class AgentState(TypedDict):
     missing_params: list | None = None
     we_need_to_start_params: bool
     chosen_scenario: str
-    stk_insr: str
+    stk_insr: Dict
 
     def _get_comment(self) -> str:
         """
