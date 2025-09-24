@@ -4,7 +4,7 @@ test*
 .vscode
 rag_sources
 .DS_Store
-data/
+# data/
 myenv/
 .idea/
 venv/
