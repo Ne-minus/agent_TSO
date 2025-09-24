@@ -97,7 +97,7 @@ class AIAgent:
         state_action = state.get("action")
         # print("ACTION: ", action)
         print("STATE ACTION: ", state_action)
-        ticket = None
+        ticket_data = None
         if state_action == "CREATE_TICKET":
             action = state_action
 
