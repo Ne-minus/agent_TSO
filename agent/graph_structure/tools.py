@@ -131,6 +131,7 @@ def get_params_tool(
             "ticket_active": True,
             "we_need_to_start_params": True,
             "chosen_scenario": scenario_processed._pretty_print(),
+            "stk_insr": scenario_processed.answers,
         }
     )
 

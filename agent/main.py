@@ -23,6 +23,7 @@ from contract.schemas import (
     CreateNewDialogRs,
     Name,
 )
+from agent.utils.create_ticket import Formalize
 
 # если в build_graph уже вшит checkpointer — просто вызываем его.
 
@@ -99,19 +100,13 @@ class AIAgent:
         ticket = None
         if state_action == "CREATE_TICKET":
             action = state_action
-            ticket = _combine_info_for_ticket(
-                state.get("user_info"),
-                state.get("current_building"),
-                state.get("ticket_data"),
-                state.get("chosen_scenario"),
-            )
-
-            print(f"Заявка готова!\n{ticket}")
 
         if action:
             action = Action(action)
+            form = Formalize()
+            ticket_data = form.create_ticket(state)
 
-        return MessageToAgentRs(message=text, action=action)
+        return MessageToAgentRs(message=text, action=action, ticketData=ticket_data)
 
     def create_conversation(
         self,
@@ -121,7 +116,8 @@ class AIAgent:
         config = _thread_config(dialog_id)
 
         init_state: AgentState = {
-            "user_info": user.model_dump(),
+            "user_info": user,
+            "real_requester": None,
             "current_building": None,
             "action": None,
             "ticket_active": False,
@@ -132,6 +128,7 @@ class AIAgent:
             "parameters_to_val": ["SELECT_INNER_CLIENT", "SELECT_ASUN_BUILDING"],
             "we_need_to_start_params": False,
             "chosen_scenario": "",
+            "stk_insr": "",
         }
 
         self._graph.update_state(config, init_state)
@@ -152,13 +149,17 @@ class AIAgent:
         inputs: Dict[str, Any] = {"messages": [HumanMessage(content=user_text)]}
 
         if context is not None:
-            ctx = context.model_dump()
+            # ctx = context.model_dump()
 
             if isinstance(context, UserContext):
-                self._graph.update_state(config, {"user_info": ctx})
+                user_initial = self._graph.get_state(config)
+                if user_initial == context:
+                    self._graph.update_state(config, {"user_info": context})
+                else:
+                    self._graph.update_state(config, {"real_requester": context})
 
             elif isinstance(context, AsunEntry):
-                self._graph.update_state(config, {"current_building": ctx})
+                self._graph.update_state(config, {"current_building": context})
 
         result_state = self._graph.invoke(inputs, config=config)
         return self._finalize(result_state)

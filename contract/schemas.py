@@ -291,6 +291,9 @@ class UserContextNoLocation(BaseModel):
         description="Название подразделения, в котором работает сотрудник",
     )
 
+    def _compile_name(self):
+        return f"{self.name.lastname} {self.name.firstname} {self.name.middlename}"
+
 
 class MessageToAgentRq(BaseModel):
     """Запрос пользователя в адрес ИИ-агента"""
@@ -325,26 +328,3 @@ class ErrorResponse(BaseModel):
     success: Optional[bool] = Field(
         True, description="true - запрос успешно обработан сервером"
     )
-
-
-class User(BaseModel):
-    first_name: str
-    last_name: str
-    middle_name: str
-    tabel: str
-    address: TicketData | None = None
-
-    @property
-    def identificator(self):
-        return self.tabel
-
-
-class FinalAnswer(BaseModel):
-    message: str
-    action: (
-        Literal["CREATE_TICKET", "SELECT_ASUN_BUILDING", "SELECT_INNER_CLIENT"] | None
-    ) = None
-    ticketData: TicketData | None = None
-
-    # def model_post_init(self, context):
-    #     self.message = self.message.replace("\\n", Settings.api.next_line_placeholder)

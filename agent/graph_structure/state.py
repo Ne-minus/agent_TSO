@@ -2,15 +2,15 @@ from typing import Annotated, Sequence, TypedDict, Optional, Dict, Literal
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
-from contract.schemas import UserContext, UserContextNoLocation
+from contract.schemas import UserContext, UserContextNoLocation, AsunEntry
 
 
 class AgentState(TypedDict):
-    # История диалога (редьюсер)
     messages: Annotated[Sequence[BaseMessage], add_messages]
 
-    user_info: Dict
-    current_building: Dict
+    user_info: UserContext
+    real_requester: UserContext
+    current_building: AsunEntry
     ticket_active: bool = False
     ticket_data: bool | str
     awaiting_param: Optional[str]
@@ -23,3 +23,14 @@ class AgentState(TypedDict):
     missing_params: list | None = None
     we_need_to_start_params: bool
     chosen_scenario: str
+    stk_insr: str
+
+    def _get_comment(self) -> str:
+        """
+        Initial for ticket formatting when send to MIP.
+        """
+        params = "Параметры: \n"
+        for param in self.ticket_data:
+            params += f"{param}: {self.ticket_data[param]["value"]}\n"
+
+        return params
