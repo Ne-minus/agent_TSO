@@ -32,11 +32,10 @@ INFORMATION_LABELS = [
 
 class ScenarioRequest(BaseModel):
     user: UserContext
-    requster: UserContext
+    requester: UserContext
     branch: str
     scenario: str
-    parameters: dict[str, str]
-    comment: str
+    parameters: dict
 
     def __str__(self):
         result = "Заявка\n"
@@ -58,13 +57,13 @@ class Formalize:
         return information
 
     def _create_scenario_request(self, state: AgentState) -> ScenarioRequest:
+        print("user_info")
         request = ScenarioRequest(
             user=state.get("user_info"),
             requester=state.get("real_requester"),
-            branch=state.get("chosen_scenario")["branch"],
-            scenario=state.get("chosen_scenario")["scenario"],
+            branch=state.get("chosen_scenario").branch,
+            scenario=state.get("chosen_scenario").scenario,
             parameters=state.get("ticket_data"),
-            comment=state._get_comment(),
         )
         return request
 
@@ -88,7 +87,11 @@ class Formalize:
 
                 case "Комментарий":
 
-                    field.value = request.comment
+                    params = "Параметры: \n"
+                    for param in request.parameters:
+                        params += f"{param}: {request.parameters[param]["value"]}\n"
+
+                    field.value = params
 
                 case "ФИО ВК":
                     field.value = request.requester._compile_name()
@@ -112,8 +115,8 @@ class Formalize:
         information = self._fill_information_field_in_request(request)
 
         result = TicketData(
-            callerId=request.user.tabel,
-            initiatorId=request.requster.tabel,
+            callerId=request.user.empid,
+            initiatorId=request.requester.empid,
             extSystem=ExtSystem.FRIEND,
             templateId=f"{request.branch}_mip",
             templateName=request.branch,

@@ -24,13 +24,3 @@ class AgentState(TypedDict):
     we_need_to_start_params: bool
     chosen_scenario: str
     stk_insr: Dict
-
-    def _get_comment(self) -> str:
-        """
-        Initial for ticket formatting when send to MIP.
-        """
-        params = "Параметры: \n"
-        for param in self.ticket_data:
-            params += f"{param}: {self.ticket_data[param]["value"]}\n"
-
-        return params

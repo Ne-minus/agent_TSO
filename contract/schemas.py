@@ -255,6 +255,9 @@ class UserContext(BaseModel):
         description="Название подразделения, в котором работает сотрудник",
     )
 
+    def _compile_name(self):
+        return f"{self.name.lastname} {self.name.firstname} {self.name.middlename}"
+
 
 class UserValidation(BaseModel):
     message: str

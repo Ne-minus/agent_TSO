@@ -117,7 +117,7 @@ class AIAgent:
 
         init_state: AgentState = {
             "user_info": user,
-            "real_requester": None,
+            "real_requester": user,
             "current_building": None,
             "action": None,
             "ticket_active": False,
