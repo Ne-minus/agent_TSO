@@ -11,7 +11,6 @@ from agent.graph_structure.tools import (
     scenario_search_tool,
     get_params_tool,
     fill_params_tool,
-    validate_user_tool,
 )
 from agent.graph_structure.graph import get_graph
 from agent.model.model_init import get_llm
@@ -29,12 +28,21 @@ from contract.schemas import (
 
 
 def _thread_config(thread_id: str) -> Dict[str, Any]:
+
     return {"configurable": {"thread_id": thread_id}}
 
 
 def _combine_info_for_ticket(
-    user_info: Dict, current_building: Dict, ticket_data: Dict
-) -> TicketData: ...
+    user_info: Dict, current_building: Dict, ticket_data: Dict, scenario: str
+) -> TicketData:
+    user = f"Пользователь: {user_info["name"]["lastname"]} {user_info["name"]["firstname"]} {user_info["name"]["middlename"]}. Табельный номер: {user_info["empid"]}\n"
+    building = f"Объект: {current_building["addr"]}\n"
+    params = "Параметры: \n"
+    for param in ticket_data:
+        params += f"{param}: {ticket_data[param]["value"]}\n"
+    final_ticket = f"{user}\n{building}\n{params}\n{scenario}"
+
+    return final_ticket
 
 
 class AIAgent:
@@ -58,16 +66,14 @@ class AIAgent:
 
         self._graph = get_graph(self.llm)
 
-        png = self._graph.get_graph().draw_mermaid_png(max_retries=5, retry_delay=2.0)
-        with open("graph.png", "wb") as f:
-            f.write(png)
-        print("Сохранено в graph.png")
+        # png = self._graph.get_graph().draw_mermaid_png(max_retries=5, retry_delay=2.0)
+        # with open("graph.png", "wb") as f:
+        #     f.write(png)
+        # print("Сохранено в graph.png")
 
     def _maybe_parse_json(self, text: str):
         t = text.strip()
         if not t:
-            return None
-        if not (t.startswith("{") or t.startswith("[")):
             return None
         try:
             output = json.loads(t)
@@ -75,20 +81,21 @@ class AIAgent:
             action = output.get("action") or None
             return text, action
         except Exception:
-            return None
+            return text, None
 
     def _normalize_result(self, msg: BaseMessage) -> str:
-        print("RUINING MESSAGE: ", msg)
-        print(msg.content)
-        return self._maybe_parse_json(msg.content)
+        # print("RUINING MESSAGE: ", msg)
+        return self._maybe_parse_json(msg)
 
     def _finalize(self, state: AgentState) -> MessageToAgentRs:
         msg: BaseMessage = state["messages"][-1]
-        text, action = self._normalize_result(msg) if msg else ""
+        # print("MESSAGE: ", type(msg))
+        text, action = self._normalize_result(msg.content) if msg else ""
         # Готовим Action и ticketData из стейта
         # (если твои узлы пишут action в другое место — подстрой тут)
         state_action = state.get("action")
-        print("ACTION: ", action)
+        # print("ACTION: ", action)
+        print("STATE ACTION: ", state_action)
         ticket = None
         if state_action == "CREATE_TICKET":
             action = state_action
@@ -96,11 +103,15 @@ class AIAgent:
                 state.get("user_info"),
                 state.get("current_building"),
                 state.get("ticket_data"),
+                state.get("chosen_scenario"),
             )
+
+            print(f"Заявка готова!\n{ticket}")
+
         if action:
             action = Action(action)
 
-        return MessageToAgentRs(message=text, action=action, ticketData=ticket)
+        return MessageToAgentRs(message=text, action=action)
 
     def create_conversation(
         self,
@@ -119,6 +130,8 @@ class AIAgent:
             "missing_params": None,
             "user_validated": None,
             "parameters_to_val": ["SELECT_INNER_CLIENT", "SELECT_ASUN_BUILDING"],
+            "we_need_to_start_params": False,
+            "chosen_scenario": "",
         }
 
         self._graph.update_state(config, init_state)
@@ -148,7 +161,6 @@ class AIAgent:
                 self._graph.update_state(config, {"current_building": ctx})
 
         result_state = self._graph.invoke(inputs, config=config)
-        print("RESULT_STATE: ", result_state)
         return self._finalize(result_state)
 
 
@@ -195,6 +207,12 @@ if __name__ == "__main__":
                     departamentCode="10393702",
                     departamentName="Группа разработки",
                 )
+
+        elif answer.action == "SELECT_ASUN_BUILDING":
+            context = AsunEntry(
+                asunId="77",
+                addr="г. Москва, пр-кт Кутузовский, 32 к3 стрБ, Б.05.05, Б.05.05.1",
+            )
 
         answer = agent.continue_conversation(str(dialog_id), query, context=context)
 

@@ -21,3 +21,5 @@ class AgentState(TypedDict):
         Literal["CREATE_TICKET", "SELECT_ASUN_BUILDING", "SELECT_INNER_CLIENT"]
     ]
     missing_params: list | None = None
+    we_need_to_start_params: bool
+    chosen_scenario: str

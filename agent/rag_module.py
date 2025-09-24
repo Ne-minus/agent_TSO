@@ -61,7 +61,13 @@ class FaissSearch:
             node = doc.metadata["node"]
             if node not in exit_scenarios:
 
-                exit_scenarios.append({"id": doc.id, "scenario": node._pretty_print()})
+                exit_scenarios.append(
+                    {
+                        "id": doc.id,
+                        "scenario": node._pretty_print(),
+                        "questions_to_ask": node._questions(),
+                    }
+                )
 
         print(f"RESULTS: {top_k}")
 

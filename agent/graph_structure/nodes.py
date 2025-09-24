@@ -26,7 +26,6 @@ from agent.graph_structure.tools import (
     scenario_search_tool,
     get_params_tool,
     fill_params_tool,
-    validate_user_tool,
     GENERAL_TOOLS,
     TICKET_TOOLS,
 )
@@ -173,11 +172,26 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
                 # "user_validated": user_validated,
             }
 
+    print("CONDITION: ", state.get("we_need_to_start_params"))
+
+    if state.get("we_need_to_start_params"):
+        messages += [
+            f"\nСейчас нужно начать запрашивать параметры по заявке. Обязательно вызови fill_param_tools()\n"
+        ]
+
+        resp = model.bind_tools([fill_params_tool]).invoke([system] + messages, config)
+
+        return {
+            "messages": [resp],
+            "we_need_to_start_params": False,
+        }
+
     elif state.get("awaiting_param") is not None:
         print("WE FILL PARAMS")
 
         print("Now we check missing")
         if state.get("missing_params"):
+            print("Now we check missing")
 
             messages += [
                 f"\nСейчас нужно заполнить параметр {state.get('awaiting_param')} через user_interaction_tool. Далее вызови fill_param_tools(), так как  остались незаполненными другие необходимые параметры. Процесс заполнения заявки завершать НЕЛЬЗЯ!\n"

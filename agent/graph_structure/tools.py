@@ -45,10 +45,10 @@ def user_interaction_tool(
     """
     Универсальный инструмент для взаимодействия с пользователем.
     - Если mode='answer' → возвращается финальный ответ в формате словаря.
-    - Если mode='ask' → возвращается уточняющий вопрос.
+    - Если mode='ask' → возвращается уточняющий вопрос в формате словаря.
     """
     if mode == "answer":
-        return {"answer": text}
+        return {"type": "answer", "answer": text}
     elif mode == "ask":
         return {"type": "ask_user", "question": text}
 
@@ -84,11 +84,13 @@ def scenario_search_tool(
     try:
         cands = SCENARIO.scenario_search(query, k=top_k)
     except Exception as e:
+        print(e)
         return {"found": False, "error": f"search_failed: {e}"}
     return {
         "messages": "После того, как подтвердишь у пользователя сценарий, вызови обязательно get_params_tool()",
         "found": bool(cands),
         "candidates": cands,
+        "questions_to_ask": [cand["questions_to_ask"] for cand in cands],
     }
 
 
@@ -127,7 +129,9 @@ def get_params_tool(
             "ticket_data": parameters,  # keep your structured state too
             "user_validated": False,
             "ticket_active": True,
-        },
+            "we_need_to_start_params": True,
+            "chosen_scenario": scenario_processed._pretty_print(),
+        }
     )
 
 
@@ -143,64 +147,6 @@ def _create_update(result: UserValidation) -> Command:
             "user_validated": result.user_validated,
             "action": result.action,
         }
-    )
-
-
-@tool
-def validate_user_tool(
-    state: Annotated[dict, InjectedState] = None,
-    tool_call_id: Annotated[str, InjectedToolCallId] = None,
-) -> Command:
-    """
-    Проверяет от чьего имени и на каком объекте охраны создается заявка.
-    """
-    print("WE CHECK USER INFO")
-    user = state.get("user_info")
-    print(type(user))
-    validation_status = state.get("user_validated")
-    print(validation_status == False)
-
-    if validation_status == False:
-        print("NO USER CHECKED")
-        action = "SELECT_INNER_CLIENT"
-        user_validated = "in progress"
-        message = ToolMessage(
-            {"type": "ask_user", "question": "Вы заводите заявку от своего имени?"},
-            name="user_interaction_tool",
-            tool_call_id=tool_call_id,
-        )
-
-    elif validation_status == "in progress":
-        print("USER CHECKED, ADDRESS_NO")
-        action = "SELECT_ASUN_BUILDING"
-        user_validated = "in progress"
-        if user.get("workPlaceLocation"):
-            message = ToolMessage(
-                {"type": "ask_user", "question": "Вы заводите заявку от своего имени?"},
-                name="user_interaction_tool",
-                tool_call_id=tool_call_id,
-            )
-            message = ToolMessage(
-                {"type": "ask_user", "question": "По какому адресу вы находитесь?"},
-                name="user_interaction_tool",
-                tool_call_id=tool_call_id,
-            )
-    elif validation_status:
-        action = "SELECT_ASUN_BUILDING"
-        user_validated = None
-        message = ToolMessage(
-            {"type": "answer", "question": "Все параметры заполнены."},
-            name="user_interaction_tool",
-            tool_call_id=tool_call_id,
-        )
-
-    print(action)
-    return Command(
-        update={
-            "messages": [message],
-            "user_validated": user_validated,
-            "action": action,
-        },
     )
 
 
@@ -235,15 +181,18 @@ def fill_params_tool(
     if missing == []:
         # TODO: doublecheck logic
         msg_text = f"Success: filled {len(params_to_fill)} parameters "
+        print("FILLED PARAMS END: ", params_to_fill)
         return Command(
             update={
                 "messages": [
                     ToolMessage(msg_text, tool_call_id=tool_call_id, name="finalize")
                 ],
                 "awaiting_param": None,
+                "ticket_data": params_to_fill,
+                "action": "CREATE_TICKET",
             },
         )
-
+    print("FILLED PARAMS: ", params_to_fill)
     for param in missing:
         print(params_to_fill)
         if params_to_fill[param]["value"] is None:
@@ -259,6 +208,7 @@ def fill_params_tool(
                     "awaiting_param": param,
                     "missing_params": missing,
                     "ticket_active": False,
+                    "ticket_data": params_to_fill,
                 },
             )
 

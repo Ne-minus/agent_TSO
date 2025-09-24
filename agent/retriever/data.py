@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from agent.config import Settings
 
-from typing import Literal
+from typing import Literal, List
 
 
 # ----------------
@@ -29,8 +29,8 @@ class ParameterSpecification(BaseModel):
     name: str
     description: str
     examples: str
-    hint: Literal["Пропуск"] | str | None
-    out_of_system: Literal["Арсенал", "ЦСМОС"] | None
+    hint: str | None = None
+    out_of_system: str | None = None
 
     @property
     def description_examples(self) -> str:
@@ -44,17 +44,25 @@ class ParameterSpecification(BaseModel):
 
 
 class ExitScenarioPoint(BaseModel):
+    ticket_name: str
     branch: str
     scenario: str
     description: str
-    examples: list[str]
-    parameters: list[ParameterSpecification]
+    questions: str
+    answers: str
+    examples: List[str]
+    parameters: List[ParameterSpecification]
 
     def _pretty_print(self):
         msg = "ЗАЯВКА\n"
         msg += f"{self.branch} - {self.scenario}\n"
         msg += f"Описание: {self.description}"
         return msg
+
+    def _questions(self):
+        return (
+            f"Вопросы, чтобы задать пользователю для уточнения заявки: {self.questions}"
+        )
 
 
 def load_data(path: str) -> pd.DataFrame:
@@ -104,6 +112,7 @@ def make_specification(filter_data: pd.DataFrame) -> dict:
 
     specification["branch"] = filter_data.iloc[0]["branch"]
     specification["scenario"] = filter_data.iloc[0]["scenario"]
+    print(filter_data[filter_data["name"] == "type"]["description"])
     specification["description"] = filter_data[filter_data["name"] == "type"][
         "description"
     ].item()
@@ -137,7 +146,70 @@ def make_exit_nodes(data: pd.DataFrame) -> list[ExitScenarioPoint]:
     for branch, scenario in unique_branch_scenario:
         filter_data = filter_data_on_keys(data, branch, scenario)
         specification = make_specification(filter_data)
+        print(specification)
         node = ExitScenarioPoint(**specification)
+        exit_nodes.append(node)
+
+    return exit_nodes
+
+
+def parse_excel(path: str) -> List[ExitScenarioPoint]:
+    df = pd.read_excel(path).fillna("")
+
+    exit_nodes = []
+    # группируем по ticket_name
+    print(df.columns)
+    for ticket, group in df.groupby("ticket_name"):
+        # обязательные поля
+        branch = group[group["field_name"] == "branch"]["field_value"].iloc[0]
+        scenario = group[group["field_name"] == "scenario"]["field_value"].iloc[0]
+        description = group[group["field_name"] == "ticket_description"][
+            "field_value"
+        ].iloc[0]
+        questions = group[group["field_name"] == "questions"]["field_value"].iloc[0]
+        answers = group[group["field_name"] == "answers"]["field_value"].iloc[0]
+
+        # собираем примеры
+        examples = (
+            group[group["field_name"] == "ticket_description"]["examples"]
+            .iloc[0]
+            .split("\n")
+            if "examples" in group.columns
+            and not group[group["field_name"] == "ticket_description"]["examples"]
+            .isna()
+            .all()
+            else []
+        )
+
+        # остальные параметры
+        params = []
+        for _, row in group.iterrows():
+            if row["field_name"] not in [
+                "branch",
+                "scenario",
+                "ticket_description",
+                "questions",
+                "answers",
+            ]:
+                param = ParameterSpecification(
+                    name=row["field_name"],
+                    description=row["field_value"],
+                    examples=row["examples"] if row["examples"] else "",
+                    hint=None,
+                    out_of_system=None,
+                )
+                params.append(param)
+
+        node = ExitScenarioPoint(
+            ticket_name=ticket,
+            branch=branch,
+            scenario=scenario,
+            description=description,
+            questions=questions,
+            answers=answers,
+            examples=examples,
+            parameters=params,
+        )
         exit_nodes.append(node)
 
     return exit_nodes
@@ -226,7 +298,7 @@ def load_and_split_file(path_to_file: str, source_name: str) -> list[Document]:
 
 if __name__ == "__main__":
     data = load_data(Settings.docs.tso_scenario.full_docs_path)
-    exit_nodes = make_exit_nodes(data)
+    exit_nodes = make_exit_nodes(Settings.docs.tso_scenario.full_docs_path)
     docs = make_documents(exit_nodes)
 
     print(f"Всего выходных узлов: {len(docs)}")
