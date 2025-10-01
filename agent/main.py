@@ -67,10 +67,10 @@ class AIAgent:
 
         self._graph = get_graph(self.llm)
 
-        # png = self._graph.get_graph().draw_mermaid_png(max_retries=5, retry_delay=2.0)
-        # with open("graph.png", "wb") as f:
-        #     f.write(png)
-        # print("Сохранено в graph.png")
+        png = self._graph.get_graph().draw_mermaid_png(max_retries=5, retry_delay=2.0)
+        with open("graph.png", "wb") as f:
+            f.write(png)
+        print("Сохранено в graph.png")
 
     def _maybe_parse_json(self, text: str):
         t = text.strip()
@@ -129,6 +129,10 @@ class AIAgent:
             "we_need_to_start_params": False,
             "chosen_scenario": "",
             "stk_insr": "",
+            "ticket_name_chosen": None,
+            "if_comment": None,
+            "curr_question": None,
+            "ticket_not_started": True,
         }
 
         self._graph.update_state(config, init_state)

@@ -24,3 +24,7 @@ def get_ticket_prompt() -> str:
 
 def get_formatting_prompt() -> str:
     return prompts["formatting_prompt"]
+
+
+def get_scenario_prompt() -> str:
+    return prompts["scenario_system_prompt"] + "\n" + prompts["scenario_instructions"]

@@ -24,3 +24,8 @@ class AgentState(TypedDict):
     we_need_to_start_params: bool
     chosen_scenario: str
     stk_insr: Dict
+
+    ticket_name_chosen: str = None
+    if_comment: str = None
+    curr_question: str = None
+    ticket_not_started: bool = True

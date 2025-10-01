@@ -12,6 +12,7 @@ from agent.rag_module import FaissSearch
 from agent.config import Settings
 from agent.model.model_init import get_embeddings
 from agent.utils.extract_params import ParamExtractor
+from agent.utils.tree_strcture import TREE
 from contract.schemas import UserValidation
 
 KNOWLEDGE_BASE = FaissSearch(
@@ -75,28 +76,107 @@ def kb_search_tool(query: Annotated[str, "вопрос пользователя 
     return {"found": True, "answer": joined, "context": [d.dict() for d in ctx_docs]}
 
 
+def _search_next_one(
+    curr_question: str,
+    tree: Dict[str, Dict],
+    state: Annotated[dict, InjectedState] = None,
+    tool_call_id: Annotated[str, InjectedToolCallId] = None,
+):
+    print("WE ARE IN THE FUNCTION")
+    print(tree[curr_question]["is_last"])
+    if tree[curr_question]["is_last"]:
+        if tree[curr_question]["if_comment"]:
+
+            print(tree[curr_question]["if_comment"])
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            f"Не нужно заводить заявку, только даем комментарий: {tree[curr_question]['if_comment']}",
+                            tool_call_id=tool_call_id,
+                        )
+                    ],
+                    "choice_in_progress": False,
+                    "if_comment": True,
+                }
+            )
+        else:
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            f"Необходимо завести заявку со следующим названием: {curr_question}",
+                            tool_call_id=tool_call_id,
+                        )
+                    ],
+                    "choice_in_progress": False,
+                    "ticket_name_chosen": curr_question,
+                }
+            )
+    else:
+        print("we go here")
+        extractor = ParamExtractor(state.get("llm"), state)
+        print(extractor)
+        answer = extractor.simple_extraction(curr_question)
+        print(type(answer))
+        if answer:
+            print(curr_question)
+            return _search_next_one(tree[curr_question][answer], tree)
+        else:
+            print("WE RE GONNA ASK USER")
+            return Command(
+                goto="ticket",
+                update={
+                    "messages": [
+                        ToolMessage(
+                            # content=json.dumps(
+                            #     {"type": "ask_user", "question": curr_question},
+                            #     ensure_ascii=False,
+                            # ),
+                            f"Нужно уточнить у пользователя ответ на следующий вопрос: {curr_question}",
+                            tool_call_id=tool_call_id,
+                            name="scenario_search_tool",
+                        )
+                    ],
+                    "choice_in_progress": True,
+                    "curr_question": curr_question,
+                    "ticket_not_started": False,
+                },
+            )
+
+
 @tool
 def scenario_search_tool(
-    query: Annotated[str, "фраза пользователя, по которой подбираем сценарии"],
-    top_k: Annotated[int, "сколько кандидатов вернуть"] = 10,
-) -> dict:
-    """Используется, если необходимо завести заявку о поломке или несиправности. Ищет сценарии через FAISS. Возвращает до top_k кандидатов."""
+    state: Annotated[dict, InjectedState] = None,
+    tool_call_id: Annotated[str, InjectedToolCallId] = None,
+    entrypoint: Optional[str] = None,
+):
+    """
+    Инструмент для поиска сценария, исходя из ответов пользователя на дополнительные вопросы.
+    """
+    print("we're gonna search scenario")
+    if entrypoint:
+        curr_question = entrypoint
+    else:
+        curr_question = state["curr_question"]
+
+    print(curr_question)
     try:
-        cands = SCENARIO.scenario_search(query, k=top_k)
+        result = _search_next_one(curr_question, TREE, state, tool_call_id)
+        print("STATE FLAG AFTER UPDATE:", state.get("ticket_not_started"))
+
+        print(f"SEARCH RESULT: {result}")
     except Exception as e:
-        print(e)
-        return {"found": False, "error": f"search_failed: {e}"}
-    return {
-        "messages": "После того, как подтвердишь у пользователя сценарий, вызови обязательно get_params_tool()",
-        "found": bool(cands),
-        "candidates": cands,
-        "questions_to_ask": [cand["questions_to_ask"] for cand in cands],
-    }
+        import traceback
+
+        print(">>> ERROR", e)
+
+    return result
 
 
 @tool
 def get_params_tool(
-    id: Annotated[str, "ID заявки в базе знаний"],
+    ticket_name: Annotated[str, "Название заявки"],
     tool_call_id: Annotated[str, InjectedToolCallId],
 ) -> Command:
     """
@@ -132,21 +212,6 @@ def get_params_tool(
             "we_need_to_start_params": True,
             "chosen_scenario": scenario_processed,
             "stk_insr": scenario_processed.answers,
-        }
-    )
-
-
-def _create_update(result: UserValidation) -> Command:
-    return Command(
-        update={
-            "messages": [
-                ToolMessage(
-                    msg_text=result.message,
-                    tool_call_id=result.tool_call_id,
-                )
-            ],
-            "user_validated": result.user_validated,
-            "action": result.action,
         }
     )
 

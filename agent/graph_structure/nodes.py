@@ -17,6 +17,7 @@ from agent.prompts.prompts import (
     get_ticket_prompt,
     get_react_instructions,
     get_formatting_prompt,
+    get_scenario_prompt,
 )
 
 from agent.graph_structure.tools import (
@@ -35,7 +36,6 @@ TICKET_TOOL_NAMES: Set[str] = {t.name for t in TICKET_TOOLS if hasattr(t, "name"
 GENERAL_TOOL_NAMES: Set[str] = {t.name for t in GENERAL_TOOLS if hasattr(t, "name")}
 
 
-# Словарь доступных инструментов по имени
 TOOLS_BY_NAME = {t.name: t for t in (GENERAL_TOOLS + TICKET_TOOLS)}
 
 
@@ -62,16 +62,17 @@ def _was_question_asked(state: AgentState) -> bool:
 
 
 def _extract_question(state: AgentState) -> str | None:
-    tm = _last_tool_message(state)
-    if not tm:
-        return None
-    data = tm.content
-    if isinstance(data, str):
-        try:
-            data = json.loads(data)
-        except Exception:
-            return None
-    return data.get("question")
+    for m in reversed(state.get("messages", [])):
+        if isinstance(m, ToolMessage):
+            try:
+                data = (
+                    json.loads(m.content) if isinstance(m.content, str) else m.content
+                )
+            except Exception:
+                continue
+            if isinstance(data, dict) and data.get("type") == "ask_user":
+                return data.get("question")
+    return None
 
 
 def run_tools_and_wrap(ai_msg: AIMessage) -> list[ToolMessage]:
@@ -115,18 +116,6 @@ def _compose_prompt(if_ticket: bool = False, extra: str = "") -> str:
     return system_prompt + get_react_instructions() + (("\n" + extra) if extra else "")
 
 
-def reflect_node(state: AgentState, config: RunnableConfig, model):
-    """
-    General reflection on whether we need QA or Ticket functional.
-    """
-    print("ACCIDENTALLY HERE")
-    system = SystemMessage(_compose_prompt())
-    resp = model.bind_tools(GENERAL_TOOLS + TICKET_TOOLS).invoke(
-        [system] + list(state["messages"]), config
-    )
-    return {"messages": [resp]}
-
-
 def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     """
     Reflection during the process of ticket filling.
@@ -136,6 +125,13 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
 
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(if_ticket=True))
+
+    print("FLAG FOR SCENARIO:", state["ticket_not_started"])
+
+    if not state["ticket_not_started"]:
+        print("WE ARE CHOOSING SCENARIO")
+        return Command(goto="scenario_node")
+
     print(f"WE ABOUT TO FILL PARAMS: {state.get("awaiting_param") }")
 
     print(
@@ -197,9 +193,9 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
                 f"\nСейчас нужно заполнить параметр {state.get('awaiting_param')} через user_interaction_tool. Далее вызови fill_param_tools(), так как  остались незаполненными другие необходимые параметры. Процесс заполнения заявки завершать НЕЛЬЗЯ!\n"
             ]
 
-        resp = model.bind_tools(TICKET_TOOLS[:-1] + GENERAL_TOOLS).invoke(
-            [SystemMessage(get_formatting_prompt())] + messages, config
-        )
+        resp = model.bind_tools(
+            [fill_params_tool, user_interaction_tool] + GENERAL_TOOLS
+        ).invoke([SystemMessage(get_formatting_prompt())] + messages, config)
 
         parameters_to_fill = state.get("ticket_data")
         # parameters_to_fill[state.get("awaiting_param")]["value"] = resp
@@ -214,10 +210,30 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             "missing_params": new_missing,
         }
 
-    resp = model.bind_tools(TICKET_TOOLS[:-1] + GENERAL_TOOLS).invoke(
-        [system] + messages, config
-    )
+    resp = model.bind_tools(
+        [get_params_tool, fill_params_tool, ask_user_with_action_tool] + GENERAL_TOOLS
+    ).invoke([system] + messages, config)
 
+    return {"messages": [resp]}
+
+
+def scenario_node(state: AgentState, config: RunnableConfig, model):
+    messages = list(state["messages"])
+    print(messages[-3:])
+    if state["ticket_not_started"]:
+        messages += [
+            f"\nСейчас нужно задать пользователю дополнительные вопросы. Для этого вызови search_scenario_tool(entrypoint='<НЕОБХОДИМЫЙ ВОПРОС>'). Заполнение параметра entrypoint зависит от запроса пользователя."
+        ]
+    else:
+        messages += [
+            f"\nНужно задавать вопросы далее. Вызови search_scenario_tool() без каких-либо аргументов"
+        ]
+    system = get_scenario_prompt()
+    print("WE ARE GONNA GET RESPONSE FROM GIGACHAT")
+    resp = model.bind_tools([scenario_search_tool]).invoke([system] + messages, config)
+    print(resp)
+
+    # возвращаем всё сразу
     return {"messages": [resp]}
 
 
@@ -225,11 +241,18 @@ def await_user_node(state: AgentState, *_):
     """
     Останавливает граф, спрашивает пользователя и ждёт resume с {"answer": "..."}.
     """
-    question = _extract_question(state) or "Пожалуйста, ответьте на вопрос."
-    payload = interrupt({"question": question})
-    answer = payload.get("answer")
+    print("WE ARE WAITING FOR USER")
+    try:
+        question = _extract_question(state) or "Пожалуйста, ответьте на вопрос."
+        payload = interrupt({"question": question})
+        print("THIS IS PAYLOAD: ", payload)
+        answer = payload.get("answer")
+        print("THIS IS PAYLOAD: ", payload)
+    except Exception as e:
+        print(">>> ERROR", e)
     if not answer:
         return {}
+
     # Превращаем ответ в HumanMessage и продолжаем граф.
     return {"messages": [HumanMessage(answer)]}
 
@@ -239,7 +262,7 @@ def await_user_node(state: AgentState, *_):
 ### -----------------------
 
 
-def should_route_after_reflect(state: AgentState):
+def should_route_scenario_reflect(state: AgentState):
     """
     Куда идти после Reflection:
       - если LLM вызвала ticket-инструмент → сначала в Ticket node (а не сразу в ToolNode),
@@ -252,20 +275,26 @@ def should_route_after_reflect(state: AgentState):
         return "end"
     for c in calls:
         if c["name"] in TICKET_TOOL_NAMES:
-            return "use_ticket_tool"  # ← СРАЗУ исполняем тикет-тул
+            return "use_ticket_tool"
     return "use_general_tool"
 
 
 def should_route_after_ticket_reflect(state: AgentState):
     last = state["messages"][-1]
+    content = getattr(last, "content", "")
+    if isinstance(content, str) and "scenario_node" in content:
+        return "scenario_node"
+
     calls = getattr(last, "tool_calls", None) or []
     if not calls:
         return "end"
+
     names = {c["name"] for c in calls}
     if names & TICKET_TOOL_NAMES:
         return "use_ticket_tool"
     if names & GENERAL_TOOL_NAMES:
         return "use_general_tool"
+
     return "end"
 
 
@@ -293,6 +322,7 @@ def should_continue_after_ticket_tool(state: AgentState):
             break
 
     if _was_question_asked(state):
+        print("WAS QUESTION ASKED")
         return "await_user"
 
     return "ticket"
