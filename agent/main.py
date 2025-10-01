@@ -38,15 +38,15 @@ def _thread_config(thread_id: str) -> Dict[str, Any]:
 def _combine_info_for_ticket(
     user_info: Dict, current_building: Dict, ticket_data: Dict, scenario: str
 ) -> TicketData:
-    user = f"Пользователь: {user_info["name"]["lastname"]} {user_info["name"]["firstname"]} {user_info["name"]["middlename"]}. Табельный номер: {user_info["empid"]}\n"
-    building = f"Объект: {current_building["addr"]}\n"
+    user = f"Пользователь: {user_info['name']['lastname']} {user_info['name']['firstname']} {user_info['name']['middlename']}. Табельный номер: {user_info['empid']}\n"
+    building = f"Объект: {current_building['addr']}\n"
     params = "Параметры: \n"
     for param in ticket_data:
         logging.info("+" * 20)
         logging.info(param)
         logging.info(param.get("value"))
         logging.info("+" * 20)
-        params += f"{param}: {ticket_data[param]["value"]}\n"
+        params += f"{param}: {ticket_data[param]['value']}\n"
     final_ticket = f"{user}\n{building}\n{params}\n{scenario}"
 
     return final_ticket

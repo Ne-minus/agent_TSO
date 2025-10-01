@@ -89,7 +89,7 @@ class Formalize:
 
                     params = "Параметры: \n"
                     for param in request.parameters:
-                        params += f"{param}: {request.parameters[param]["value"]}\n"
+                        params += f"{param}: {request.parameters[param]['value']}\n"
 
                     field.value = params
 

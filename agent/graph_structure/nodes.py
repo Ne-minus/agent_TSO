@@ -170,7 +170,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     #         )
     #         return {**state, "messages": messages + [resp], "ticket_name_chosen": None}
 
-    print(f"WE ABOUT TO FILL PARAMS: {state.get("awaiting_param") }")
+    print(f"WE ABOUT TO FILL PARAMS: {state.get('awaiting_param') }")
 
     print(
         "IMPORTANT CONDITIONS: ",
