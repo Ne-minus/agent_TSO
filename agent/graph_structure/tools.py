@@ -83,7 +83,7 @@ def _search_next_one(
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ):
     print("WE ARE IN THE FUNCTION")
-    print(tree[curr_question]["is_last"])
+    print(tree[curr_question])
     if tree[curr_question]["is_last"]:
         if tree[curr_question]["if_comment"]:
 
@@ -97,8 +97,10 @@ def _search_next_one(
                         )
                     ],
                     "choice_in_progress": False,
+                    "ticket_name_chosen": tree[curr_question]["if_comment"],
                     "if_comment": True,
-                }
+                },
+                goto="ticket",
             )
         else:
             return Command(
@@ -111,17 +113,20 @@ def _search_next_one(
                     ],
                     "choice_in_progress": False,
                     "ticket_name_chosen": curr_question,
-                }
+                },
+                goto="ticket",
             )
     else:
         print("we go here")
         extractor = ParamExtractor(state.get("llm"), state)
         print(extractor)
         answer = extractor.simple_extraction(curr_question)
-        print(type(answer))
+        print("Answer:", answer)
         if answer:
-            print(curr_question)
-            return _search_next_one(tree[curr_question][answer], tree)
+            print("Next question: ", tree[curr_question][answer])
+            return _search_next_one(
+                tree[curr_question][answer], tree, state, tool_call_id
+            )
         else:
             print("WE RE GONNA ASK USER")
             return Command(
@@ -177,43 +182,55 @@ def scenario_search_tool(
 @tool
 def get_params_tool(
     ticket_name: Annotated[str, "Название заявки"],
-    tool_call_id: Annotated[str, InjectedToolCallId],
+    state: Annotated[dict, InjectedState] = None,
+    tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ) -> Command:
     """
     Находит необходимый сценарий, а затем извлекает список параметров, неоьходимых для заполнения заявки по данному сценарию.
     """
-    scenario_raw = SCENARIO.find_by_ids(id)
+    scenario_raw = SCENARIO.scenario_search(ticket_name, k=10)
     print("CANDIDATES: ", scenario_raw)
 
     # TODO: fix database management and creation
 
-    scenario_processed = scenario_raw[0].metadata["node"]
+    try:
 
-    parameters = {}
-    for param in scenario_processed.parameters:
-        parameters[param.name] = {
-            "info": f"{param._pretty_print()}",
-            "class_mode": param,
-            "value": None,
-        }
+        for i in scenario_raw:
+            if i["scenario_obj"].ticket_name == ticket_name:
+                scenario_processed = i["scenario_obj"]
+                break
 
-    msg_text = (
-        f"Успешно: извлечено {len(parameters)} параметр(а/ов) "
-        f"для сценария '{getattr(scenario_processed._pretty_print(), 'name', 'unknown')}'."
-        f"Далее используй validate_user_tool, чтобы уточнить, кто и из какого здания заводит заявку."
-    )
+        parameters = {}
+        for param in scenario_processed.parameters:
+            parameters[param.name] = {
+                "info": f"{param._pretty_print()}",
+                "class_mode": param,
+                "value": None,
+            }
 
-    return Command(
-        update={
-            "messages": [ToolMessage(msg_text, tool_call_id=tool_call_id)],
-            "ticket_data": parameters,  # keep your structured state too
-            "user_validated": False,
-            "ticket_active": True,
-            "we_need_to_start_params": True,
-            "chosen_scenario": scenario_processed,
-            "stk_insr": scenario_processed.answers,
-        }
-    )
+        msg_text = (
+            f"Успешно: извлечено {len(parameters)} параметр(а/ов) "
+            f"для сценария '{getattr(scenario_processed._pretty_print(), 'name', 'unknown')}'."
+            f"Далее используй validate_user_tool, чтобы уточнить, кто и из какого здания заводит заявку."
+        )
+
+        return Command(
+            update={
+                "messages": [ToolMessage(msg_text, tool_call_id=tool_call_id)],
+                "ticket_data": parameters,  # keep your structured state too
+                "user_validated": False,
+                "ticket_active": True,
+                "we_need_to_start_params": True,
+                "chosen_scenario": scenario_processed,
+                "stk_insr": scenario_processed.answers,
+            }
+        )
+
+    except Exception as e:
+        import traceback
+
+        print(">>> ERROR", e)
+        traceback.print_exc()
 
 
 @tool

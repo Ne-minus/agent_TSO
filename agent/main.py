@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, Optional, Tuple, AsyncGenerator, Literal
 from uuid import uuid4
 from dotenv import load_dotenv
@@ -26,6 +27,7 @@ from contract.schemas import (
 from agent.utils.create_ticket import Formalize
 
 # если в build_graph уже вшит checkpointer — просто вызываем его.
+logging.basicConfig(level=logging.DEBUG)
 
 
 def _thread_config(thread_id: str) -> Dict[str, Any]:
@@ -40,6 +42,10 @@ def _combine_info_for_ticket(
     building = f"Объект: {current_building["addr"]}\n"
     params = "Параметры: \n"
     for param in ticket_data:
+        logging.info("+" * 20)
+        logging.info(param)
+        logging.info(param.get("value"))
+        logging.info("+" * 20)
         params += f"{param}: {ticket_data[param]["value"]}\n"
     final_ticket = f"{user}\n{building}\n{params}\n{scenario}"
 
@@ -133,6 +139,7 @@ class AIAgent:
             "if_comment": None,
             "curr_question": None,
             "ticket_not_started": True,
+            "choice_in_progress": False,
         }
 
         self._graph.update_state(config, init_state)

@@ -29,3 +29,4 @@ class AgentState(TypedDict):
     if_comment: str = None
     curr_question: str = None
     ticket_not_started: bool = True
+    choice_in_progress: bool = False

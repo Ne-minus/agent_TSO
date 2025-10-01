@@ -63,12 +63,10 @@ class FaissSearch:
 
                 exit_scenarios.append(
                     {
-                        "id": doc.id,
+                        "scenario_obj": node,
                         "scenario": node._pretty_print(),
                         "questions_to_ask": node._questions(),
                     }
                 )
-
-        print(f"RESULTS: {top_k}")
 
         return exit_scenarios

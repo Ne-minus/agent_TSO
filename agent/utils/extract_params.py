@@ -76,59 +76,78 @@ class ParamExtractor:
     def collect_dialogue(self) -> str:
         msgs = self.state.get("messages", [])
         chunks = []
+
         for m in msgs:
+            cls_name = m.__class__.__name__
             role = None
-            if (
-                getattr(m, "type", "") in ("human",)
-                or m.__class__.__name__ == "HumanMessage"
-            ):
+            content = str(getattr(m, "content", "")).strip()
+
+            if getattr(m, "type", "") == "human" or cls_name == "HumanMessage":
                 role = "Пользователь"
+
             elif (
-                getattr(m, "type", "") in ("ai",) or m.__class__.__name__ == "AIMessage"
+                cls_name == "ToolMessage"
+                and getattr(m, "name", "") == "user_interaction_tool"
             ):
                 role = "Агент"
+                if content:
+                    try:
+                        parsed = json.loads(content)
+                        content = parsed.get("question") or content
+                    except json.JSONDecodeError:
+                        pass
 
-            if role:
-                content = str(getattr(m, "content", "")).strip()
-                if not content:
-                    continue
+            if not role or not content:
+                continue
 
-                # фильтрация для агента
-                if role == "Агент":
-                    # исключаем размышления и планирование
-                    if any(
-                        content.startswith(prefix)
-                        for prefix in ["Reflection", "Planning", "Thought", "Action"]
-                    ):
-                        continue
-                    # берём только вопросительные реплики
-                    if "?" not in content:
-                        continue
+            chunks.append(f"{role}: {content}")
 
-                chunks.append(f"{role}: {content}")
-
-        # один заголовок
         if chunks:
             return "История диалога:\n" + "\n---\n".join(chunks)
         return ""
 
     def simple_extraction(self, question: str):
         print(">>> SIMPLE EXTRACTION START", question)
-        history = self.collect_dialogue()
+        try:
+            history = self.collect_dialogue()
+        except Exception as e:
+            import traceback
+
+            print(">>> ERROR", e)
+            traceback.print_exc()
 
         sys = """Тебе необходимо извлечь ответ на вопрос из истории диалога. 
         Ты получаешь на вход вопрос, просматриваешь историю и решаешь, есть ли в ней ответ на данный вопрос.
-        Если пользователь выражает согласие, то верни 'yes'. Если не согласен, то верни 'no'. 
-        Если пользователь не знает ответа на вопрос или ты считаешь, что ответа нет в истории, то верни 'None'.
-        Например, 
-        Вопрос: 'Проверьте, работает ли карта доступа в других зонах?'
-        История диалога: 'Асистент: Подскажите, у вас работает пропуск в других зонах?, Пользователь: везде открывает в других местах'
-        Твой ответ: 'yes'
-        ##ВАЖНО! В качестве ответа ты можешь предоставлять только строки 'yes', 'no', 'None'"""
-        human = f"Вопрос: {question}\nИстория диалога: {history}"
+        Если ответа на вопрос нет, верни 'None'.
+        Если ответ на вопрос есть и пользователь отвечает на вопрос положительно, верни 'положительно'.
+        Если ответ на вопрос есть и пользователь отвечает на вопрос отрицательно, верни 'отрицательно'.
 
-        prompt = ChatPromptTemplate.from_messages([("system", sys), ("human", human)])
-        print("PROMPT: ", prompt)
+        ## Пример 'Если ответ на вопрос есть и пользователь отвечает на вопрос положительно': 
+        Вопрос: 'Проверьте, работает ли карта доступа в других зонах?'
+        История диалога: 'Ассистент: Подскажите, у вас работает пропуск в других зонах?, Пользователь: везде открывает в других местах'
+        Твой ответ: 'положительно'
+
+        ## Пример 'Если ответ на вопрос есть и пользователь отвечает на вопрос отрицательно': 
+        Вопрос: 'Проверьте, работает ли карта доступа в других зонах?'
+        История диалога: 'Ассистент: Подскажите, у вас работает пропуск в других зонах?, Пользователь: нет'
+        Твой ответ: 'отрицательно'
+
+        ## Пример 'Если ответа на вопрос нет': 
+        Вопрос: 'Вопрос: Вы используете кнопку выхода для открытия двери?'
+        История диалога: 'Пользователь: не могу попасть в кассу, Агент: Вы используете карту доступа (пропуска) при попытке открыть дверь?, Пользователь: нет''
+        Твой ответ: 'None'
+
+        ##ВАЖНО! В качестве возвращаемого значения ты можешь предоставлять только строки 'положительно', 'отрицательно', 'None'"""
+        try:
+            human = f"Вопрос: {question}\n {history}"
+
+            prompt = ChatPromptTemplate.from_messages(
+                [("system", sys), ("human", human)]
+            )
+            print("PROMPT: ", prompt)
+        except Exception as e:
+            print(">>> ERROR", e)
+            traceback.print_exc()
         llm = self.get_llm(self.state)
         print(">>> SIMPLE EXTRACTION BEFORE LLM", question)
         try:

@@ -1,4 +1,5 @@
 import json
+import uuid
 
 from typing import Set, List, Sequence
 from langchain_core.messages import (
@@ -126,11 +127,48 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(if_ticket=True))
 
-    print("FLAG FOR SCENARIO:", state["ticket_not_started"])
+    print("FLAG FOR SCENARIO:", state.get("choice_in_progress"))
 
-    if not state["ticket_not_started"]:
+    if state.get("choice_in_progress"):
         print("WE ARE CHOOSING SCENARIO")
         return Command(goto="scenario_node")
+
+    # AFTER WE GOT TO THE END OF THE TREE
+    # if state.get("ticket_name_chosen"):
+    #     print("WE'VE CHOSEN SCENARIO")
+    #     if state.get("if_comment"):
+    #         resp = AIMessage(
+    #             content="Нам не нужно заводить заявку, даем пользователю подсказку с обращением в стороннюю систему.",
+    #             tool_calls=[
+    #                 {
+    #                     "name": "user_interaction_tool",
+    #                     "args": {
+    #                         "text": state.get("ticket_name_chosen"),
+    #                         "mode": "answer",
+    #                     },
+    #                     "id": f"call_{uuid.uuid4()}",
+    #                     "type": "tool_call",
+    #                 }
+    #             ],
+    #         )
+    #         return {**state, "messages": messages + [resp], "ticket_name_chosen": None}
+    #     else:
+    #         print("WE'VE CALLED PARAMS TOOL")
+    #         resp = AIMessage(
+    #             content="Нам нужно завести заявку, даем пользователю подсказку с обращением в стороннюю систему.",
+    #             tool_calls=[
+    #                 {
+    #                     "name": "get_params_tool",
+    #                     "args": {
+    #                         "text": state.get("ticket_name_chosen"),
+    #                         "mode": "answer",
+    #                     },
+    #                     "id": f"call_{uuid.uuid4()}",
+    #                     "type": "tool_call",
+    #                 }
+    #             ],
+    #         )
+    #         return {**state, "messages": messages + [resp], "ticket_name_chosen": None}
 
     print(f"WE ABOUT TO FILL PARAMS: {state.get("awaiting_param") }")
 
@@ -224,17 +262,24 @@ def scenario_node(state: AgentState, config: RunnableConfig, model):
         messages += [
             f"\nСейчас нужно задать пользователю дополнительные вопросы. Для этого вызови search_scenario_tool(entrypoint='<НЕОБХОДИМЫЙ ВОПРОС>'). Заполнение параметра entrypoint зависит от запроса пользователя."
         ]
+        system = get_scenario_prompt()
+        print("WE ARE GONNA GET RESPONSE FROM GIGACHAT")
+        resp = model.bind_tools([scenario_search_tool]).invoke(
+            [system] + messages, config
+        )
     else:
         messages += [
-            f"\nНужно задавать вопросы далее. Вызови search_scenario_tool() без каких-либо аргументов"
+            f"\nЕсли ты ранее получил вопрос из search_scenario_tool, но не задал его пользователю, то нужно спросить у пользователя ответ на этот помощью user_interaction_tool. Если пользователь тебе ответил, далее вызови search_scenario_tool() без каких-либо аргументов, чтобы продолжить задавать вопросы."
         ]
-    system = get_scenario_prompt()
-    print("WE ARE GONNA GET RESPONSE FROM GIGACHAT")
-    resp = model.bind_tools([scenario_search_tool]).invoke([system] + messages, config)
-    print(resp)
+        system = get_scenario_prompt()
+        print("WE ARE GONNA GET RESPONSE FROM GIGACHAT")
+        resp = model.bind_tools([scenario_search_tool, user_interaction_tool]).invoke(
+            [system] + messages, config
+        )
+        print(resp)
 
     # возвращаем всё сразу
-    return {"messages": [resp]}
+    return {"messages": [resp], "choice_in_progress": True}
 
 
 def await_user_node(state: AgentState, *_):
@@ -242,14 +287,12 @@ def await_user_node(state: AgentState, *_):
     Останавливает граф, спрашивает пользователя и ждёт resume с {"answer": "..."}.
     """
     print("WE ARE WAITING FOR USER")
-    try:
-        question = _extract_question(state) or "Пожалуйста, ответьте на вопрос."
-        payload = interrupt({"question": question})
-        print("THIS IS PAYLOAD: ", payload)
-        answer = payload.get("answer")
-        print("THIS IS PAYLOAD: ", payload)
-    except Exception as e:
-        print(">>> ERROR", e)
+
+    question = _extract_question(state) or "Пожалуйста, ответьте на вопрос."
+    payload = interrupt({"question": question})
+    print("THIS IS PAYLOAD: ", payload)
+    answer = payload.get("answer")
+    print("THIS IS PAYLOAD: ", payload)
     if not answer:
         return {}
 

@@ -81,7 +81,7 @@ class Formalize:
 
                 case "Неисправность":
                     if "damage" in request.parameters:
-                        field.value = request.parameters["damage"]
+                        field.value = request.parameters["damage"]["value"]
                     else:
                         field.value = "Другое"
 
