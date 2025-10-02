@@ -73,10 +73,10 @@ class AIAgent:
 
         self._graph = get_graph(self.llm)
 
-        png = self._graph.get_graph().draw_mermaid_png(max_retries=5, retry_delay=2.0)
-        with open("graph.png", "wb") as f:
-            f.write(png)
-        print("Сохранено в graph.png")
+        # png = self._graph.get_graph().draw_mermaid_png(max_retries=5, retry_delay=2.0)
+        # with open("graph.png", "wb") as f:
+        #     f.write(png)
+        # print("Сохранено в graph.png")
 
     def _maybe_parse_json(self, text: str):
         t = text.strip()
@@ -102,7 +102,7 @@ class AIAgent:
         # (если твои узлы пишут action в другое место — подстрой тут)
         state_action = state.get("action")
         # print("ACTION: ", action)
-        print("STATE ACTION: ", state_action)
+        # print("STATE ACTION: ", state_action)
         ticket_data = None
         if state_action == "CREATE_TICKET":
             action = state_action

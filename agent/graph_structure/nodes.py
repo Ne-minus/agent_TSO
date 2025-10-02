@@ -127,31 +127,20 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(if_ticket=True))
 
-    print("FLAG FOR SCENARIO:", state.get("choice_in_progress"))
+    # print("FLAG FOR SCENARIO:", state.get("choice_in_progress"))
 
     if state.get("choice_in_progress"):
-        print("WE ARE CHOOSING SCENARIO")
+        # print("WE ARE CHOOSING SCENARIO")
         return Command(goto="scenario_node")
 
     # AFTER WE GOT TO THE END OF THE TREE
-    # if state.get("ticket_name_chosen"):
-    #     print("WE'VE CHOSEN SCENARIO")
-    #     if state.get("if_comment"):
-    #         resp = AIMessage(
-    #             content="Нам не нужно заводить заявку, даем пользователю подсказку с обращением в стороннюю систему.",
-    #             tool_calls=[
-    #                 {
-    #                     "name": "user_interaction_tool",
-    #                     "args": {
-    #                         "text": state.get("ticket_name_chosen"),
-    #                         "mode": "answer",
-    #                     },
-    #                     "id": f"call_{uuid.uuid4()}",
-    #                     "type": "tool_call",
-    #                 }
-    #             ],
-    #         )
-    #         return {**state, "messages": messages + [resp], "ticket_name_chosen": None}
+    if state.get("ticket_name_chosen") and state.get("if_comment"):
+        messages += f"Нам не нужно заводить заявку, даем пользователю подсказку с обращением в стороннюю систему. Вызови user_interaction_tool, где тебе нужно будет сказать, что ты понял запрос пользователя и  по данной проблеме нужно завести заявку в другой системе: {state.get('if_comment')}. Ты можешь на свое усмотрение перефразировать комментарий, ГЛАВНОЕ - БУДЬ ОЧЕНЬ ВЕЗЖЛИВ"
+        resp = model.bind_tools([user_interaction_tool]).invoke(
+            [system] + messages, config
+        )
+
+        return {"messages": [resp], "ticket_name_chosen": None}
     #     else:
     #         print("WE'VE CALLED PARAMS TOOL")
     #         resp = AIMessage(
@@ -170,13 +159,13 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     #         )
     #         return {**state, "messages": messages + [resp], "ticket_name_chosen": None}
 
-    print(f"WE ABOUT TO FILL PARAMS: {state.get('awaiting_param') }")
+    # print(f"WE ABOUT TO FILL PARAMS: {state.get('awaiting_param') }")
 
-    print(
-        "IMPORTANT CONDITIONS: ",
-        state.get("parameters_to_val"),
-        state.get("user_validated"),
-    )
+    # print(
+    #     "IMPORTANT CONDITIONS: ",
+    #     state.get("parameters_to_val"),
+    #     state.get("user_validated"),
+    # )
     if state.get("parameters_to_val") != [] and state.get("user_validated") == False:
 
         mixture = {
@@ -191,7 +180,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
                 f"\nСейчас нужно провалидировать данные пользователя. Для этого вызови ask_user_with_action_tool(text='{mixture[param]}', action='{param}'). Нельзя продролжать заполнение заявки."
             ]
 
-            print("ASK FOR ACTION: ", messages[-1])
+            # print("ASK FOR ACTION: ", messages[-1])
 
             resp = model.bind_tools([ask_user_with_action_tool]).invoke(
                 [system] + messages + messages, config
@@ -206,7 +195,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
                 # "user_validated": user_validated,
             }
 
-    print("CONDITION: ", state.get("we_need_to_start_params"))
+    # print("CONDITION: ", state.get("we_need_to_start_params"))
 
     if state.get("we_need_to_start_params"):
         messages += [
@@ -221,11 +210,11 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         }
 
     elif state.get("awaiting_param") is not None:
-        print("WE FILL PARAMS")
+        # print("WE FILL PARAMS")
 
-        print("Now we check missing")
+        # print("Now we check missing")
         if state.get("missing_params"):
-            print("Now we check missing")
+            # print("Now we check missing")
 
             messages += [
                 f"\nСейчас нужно заполнить параметр {state.get('awaiting_param')} через user_interaction_tool. Далее вызови fill_param_tools(), так как  остались незаполненными другие необходимые параметры. Процесс заполнения заявки завершать НЕЛЬЗЯ!\n"
@@ -236,8 +225,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         ).invoke([SystemMessage(get_formatting_prompt())] + messages, config)
 
         parameters_to_fill = state.get("ticket_data")
-        # parameters_to_fill[state.get("awaiting_param")]["value"] = resp
-        print("OUR PARAMETERS FILLING: ", parameters_to_fill)
+
         new_missing = state.get("missing_params")
         if new_missing:
             new_missing.pop(0)
@@ -248,8 +236,23 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             "missing_params": new_missing,
         }
 
+    # if not state.get("choice_in_progress") and state.get("ticket_not_started"):
+    #     messages += [
+    #         f"Необходимо вызвать user_interaction_tool и предупредить пользователя, что ты будешь задавать вопросы."
+    #     ]
+    #     resp = model.bind_tools([user_interaction_tool] + GENERAL_TOOLS).invoke(
+    #         [system] + messages, config
+    #     )
+
+    #     return resp
+
     resp = model.bind_tools(
-        [get_params_tool, fill_params_tool, ask_user_with_action_tool] + GENERAL_TOOLS
+        [
+            get_params_tool,
+            fill_params_tool,
+            ask_user_with_action_tool,
+        ]
+        + GENERAL_TOOLS
     ).invoke([system] + messages, config)
 
     return {"messages": [resp]}
@@ -257,13 +260,12 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
 
 def scenario_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
-    print(messages[-3:])
+    # print(messages[-3:])
     if state["ticket_not_started"]:
         messages += [
             f"\nСейчас нужно задать пользователю дополнительные вопросы. Для этого вызови search_scenario_tool(entrypoint='<НЕОБХОДИМЫЙ ВОПРОС>'). Заполнение параметра entrypoint зависит от запроса пользователя."
         ]
         system = get_scenario_prompt()
-        print("WE ARE GONNA GET RESPONSE FROM GIGACHAT")
         resp = model.bind_tools([scenario_search_tool]).invoke(
             [system] + messages, config
         )
@@ -272,11 +274,9 @@ def scenario_node(state: AgentState, config: RunnableConfig, model):
             f"\nЕсли ты ранее получил вопрос из search_scenario_tool, но не задал его пользователю, то нужно спросить у пользователя ответ на этот помощью user_interaction_tool. Если пользователь тебе ответил, далее вызови search_scenario_tool() без каких-либо аргументов, чтобы продолжить задавать вопросы."
         ]
         system = get_scenario_prompt()
-        print("WE ARE GONNA GET RESPONSE FROM GIGACHAT")
         resp = model.bind_tools([scenario_search_tool, user_interaction_tool]).invoke(
             [system] + messages, config
         )
-        print(resp)
 
     # возвращаем всё сразу
     return {"messages": [resp], "choice_in_progress": True}
@@ -286,13 +286,13 @@ def await_user_node(state: AgentState, *_):
     """
     Останавливает граф, спрашивает пользователя и ждёт resume с {"answer": "..."}.
     """
-    print("WE ARE WAITING FOR USER")
+    # print("WE ARE WAITING FOR USER")
 
     question = _extract_question(state) or "Пожалуйста, ответьте на вопрос."
     payload = interrupt({"question": question})
-    print("THIS IS PAYLOAD: ", payload)
+    # print("THIS IS PAYLOAD: ", payload)
     answer = payload.get("answer")
-    print("THIS IS PAYLOAD: ", payload)
+    # print("THIS IS PAYLOAD: ", payload)
     if not answer:
         return {}
 
@@ -365,7 +365,7 @@ def should_continue_after_ticket_tool(state: AgentState):
             break
 
     if _was_question_asked(state):
-        print("WAS QUESTION ASKED")
+        # print("WAS QUESTION ASKED")
         return "await_user"
 
     return "ticket"
