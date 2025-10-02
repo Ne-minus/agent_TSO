@@ -107,13 +107,13 @@ class ParamExtractor:
         return ""
 
     def simple_extraction(self, question: str):
-        print(">>> SIMPLE EXTRACTION START", question)
+        # print(">>> SIMPLE EXTRACTION START", question)
         try:
             history = self.collect_dialogue()
         except Exception as e:
             import traceback
 
-            print(">>> ERROR", e)
+            # print(">>> ERROR", e)
             traceback.print_exc()
 
         sys = """Тебе необходимо извлечь ответ на вопрос из истории диалога. 
@@ -144,26 +144,26 @@ class ParamExtractor:
             prompt = ChatPromptTemplate.from_messages(
                 [("system", sys), ("human", human)]
             )
-            print("PROMPT: ", prompt)
+            # print("PROMPT: ", prompt)
         except Exception as e:
-            print(">>> ERROR", e)
+            # print(">>> ERROR", e)
             traceback.print_exc()
         llm = self.get_llm(self.state)
-        print(">>> SIMPLE EXTRACTION BEFORE LLM", question)
+        # print(">>> SIMPLE EXTRACTION BEFORE LLM", question)
         try:
             resp = (prompt | llm).invoke({})
-            print(">>> SIMPLE EXTRACTION RAW:", resp)
+            # print(">>> SIMPLE EXTRACTION RAW:", resp)
         except Exception as e:
             import traceback
 
-            print(">>> ERROR in invoke:", e)
+            # print(">>> ERROR in invoke:", e)
             traceback.print_exc()
             resp = None
 
         # достаём текст
         raw = getattr(resp, "content", resp)
         text = raw.strip() if isinstance(raw, str) else str(raw).strip()
-        print(">>> SIMPLE EXTRACTION TEXT:", text)
+        # print(">>> SIMPLE EXTRACTION TEXT:", text)
 
         if text == "None":
             return None

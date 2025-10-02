@@ -30,16 +30,16 @@ tools_list = [
     fill_params_tool,
 ]
 
-print("Tool names handed to graph:", [t.name for t in tools_list])
+# print("Tool names handed to graph:", [t.name for t in tools_list])
 
 model = model.bind_tools(tools_list)
 
 graph = get_graph(model)
 
-png = graph.get_graph().draw_mermaid_png(max_retries=5, retry_delay=2.0)
-with open("graph.png", "wb") as f:
-    f.write(png)
-print("Сохранено в graph.png")
+# png = graph.get_graph().draw_mermaid_png(max_retries=5, retry_delay=2.0)
+# with open("graph.png", "wb") as f:
+#     f.write(png)
+# print("Сохранено в graph.png")
 
 
 THREAD_ID = "cli-session-001"

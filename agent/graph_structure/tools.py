@@ -31,7 +31,7 @@ def ask_user_with_action_tool(
     """
     Инструмент для уточнения у пользователя параметров.
     """
-    print("WE ASK FOR ACTION: ", action)
+    # print("WE ASK FOR ACTION: ", action)
     return {"type": "ask_user", "question": text, "action": action}
 
 
@@ -82,12 +82,11 @@ def _search_next_one(
     state: Annotated[dict, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ):
-    print("WE ARE IN THE FUNCTION")
-    print(tree[curr_question])
+    # print("WE ARE IN THE FUNCTION")
+    # print(tree[curr_question])
     if tree[curr_question]["is_last"]:
         if tree[curr_question]["if_comment"]:
 
-            print(tree[curr_question]["if_comment"])
             return Command(
                 update={
                     "messages": [
@@ -117,18 +116,17 @@ def _search_next_one(
                 goto="ticket",
             )
     else:
-        print("we go here")
+        # print("we go here")
         extractor = ParamExtractor(state.get("llm"), state)
-        print(extractor)
+        # print(extractor)
         answer = extractor.simple_extraction(curr_question)
-        print("Answer:", answer)
         if answer:
-            print("Next question: ", tree[curr_question][answer])
+            # print("Next question: ", tree[curr_question][answer])
             return _search_next_one(
                 tree[curr_question][answer], tree, state, tool_call_id
             )
         else:
-            print("WE RE GONNA ASK USER")
+            # print("WE RE GONNA ASK USER")
             return Command(
                 goto="ticket",
                 update={
@@ -159,22 +157,22 @@ def scenario_search_tool(
     """
     Инструмент для поиска сценария, исходя из ответов пользователя на дополнительные вопросы.
     """
-    print("we're gonna search scenario")
+    # print("we're gonna search scenario")
     if entrypoint:
         curr_question = entrypoint
     else:
         curr_question = state["curr_question"]
 
-    print(curr_question)
+    # print(curr_question)
     try:
         result = _search_next_one(curr_question, TREE, state, tool_call_id)
-        print("STATE FLAG AFTER UPDATE:", state.get("ticket_not_started"))
+        # print("STATE FLAG AFTER UPDATE:", state.get("ticket_not_started"))
 
-        print(f"SEARCH RESULT: {result}")
+        # print(f"SEARCH RESULT: {result}")
     except Exception as e:
         import traceback
 
-        print(">>> ERROR", e)
+        # print(">>> ERROR", e)
 
     return result
 
@@ -189,7 +187,7 @@ def get_params_tool(
     Находит необходимый сценарий, а затем извлекает список параметров, неоьходимых для заполнения заявки по данному сценарию.
     """
     scenario_raw = SCENARIO.scenario_search(ticket_name, k=10)
-    print("CANDIDATES: ", scenario_raw)
+    # print("CANDIDATES: ", scenario_raw)
 
     # TODO: fix database management and creation
 
@@ -229,7 +227,7 @@ def get_params_tool(
     except Exception as e:
         import traceback
 
-        print(">>> ERROR", e)
+        # print(">>> ERROR", e)
         traceback.print_exc()
 
 
@@ -246,7 +244,7 @@ def fill_params_tool(
     params_to_fill = state.get("ticket_data")
     exctractor = ParamExtractor(state.get("llm"), state)
     data_from_history = exctractor.run_exctraction()
-    print("FROM HISTORY: ", data_from_history)
+    # print("FROM HISTORY: ", data_from_history)
 
     for param, value in data_from_history.items():
         if not params_to_fill[param]["value"]:
@@ -259,12 +257,12 @@ def fill_params_tool(
     else:
         missing = state.get("missing_params")
 
-    print(f"MISSING: {missing}")
+    # print(f"MISSING: {missing}")
 
     if missing == []:
         # TODO: doublecheck logic
         msg_text = f"Success: filled {len(params_to_fill)} parameters "
-        print("FILLED PARAMS END: ", params_to_fill)
+        # print("FILLED PARAMS END: ", params_to_fill)
         return Command(
             update={
                 "messages": [
@@ -275,9 +273,9 @@ def fill_params_tool(
                 "action": "CREATE_TICKET",
             },
         )
-    print("FILLED PARAMS: ", params_to_fill)
+    # print("FILLED PARAMS: ", params_to_fill)
     for param in missing:
-        print(params_to_fill)
+        # print(params_to_fill)
         if params_to_fill[param]["value"] is None:
 
             msg_text = (

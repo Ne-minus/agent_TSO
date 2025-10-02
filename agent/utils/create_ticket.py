@@ -57,7 +57,7 @@ class Formalize:
         return information
 
     def _create_scenario_request(self, state: AgentState) -> ScenarioRequest:
-        print("user_info")
+        # print("user_info")
         request = ScenarioRequest(
             user=state.get("user_info"),
             requester=state.get("real_requester"),
@@ -128,4 +128,5 @@ class Formalize:
     def create_ticket(self, state: AgentState) -> TicketData:
         request = self._create_scenario_request(state)
         ticket = self._create_ticket_data_for_api(request)
+        print(ticket)
         return ticket

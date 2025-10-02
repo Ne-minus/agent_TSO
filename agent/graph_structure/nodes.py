@@ -236,16 +236,6 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             "missing_params": new_missing,
         }
 
-    # if not state.get("choice_in_progress") and state.get("ticket_not_started"):
-    #     messages += [
-    #         f"Необходимо вызвать user_interaction_tool и предупредить пользователя, что ты будешь задавать вопросы."
-    #     ]
-    #     resp = model.bind_tools([user_interaction_tool] + GENERAL_TOOLS).invoke(
-    #         [system] + messages, config
-    #     )
-
-    #     return resp
-
     resp = model.bind_tools(
         [
             get_params_tool,

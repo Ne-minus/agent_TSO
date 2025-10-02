@@ -112,7 +112,7 @@ def make_specification(filter_data: pd.DataFrame) -> dict:
 
     specification["branch"] = filter_data.iloc[0]["branch"]
     specification["scenario"] = filter_data.iloc[0]["scenario"]
-    print(filter_data[filter_data["name"] == "type"]["description"])
+    # print(filter_data[filter_data["name"] == "type"]["description"])
     specification["description"] = filter_data[filter_data["name"] == "type"][
         "description"
     ].item()
@@ -146,7 +146,7 @@ def make_exit_nodes(data: pd.DataFrame) -> list[ExitScenarioPoint]:
     for branch, scenario in unique_branch_scenario:
         filter_data = filter_data_on_keys(data, branch, scenario)
         specification = make_specification(filter_data)
-        print(specification)
+        # print(specification)
         node = ExitScenarioPoint(**specification)
         exit_nodes.append(node)
 
@@ -158,7 +158,7 @@ def parse_excel(path: str) -> List[ExitScenarioPoint]:
 
     exit_nodes = []
     # группируем по ticket_name
-    print(df.columns)
+    # print(df.columns)
     for ticket, group in df.groupby("ticket_name"):
         # обязательные поля
         branch = group[group["field_name"] == "branch"]["field_value"].iloc[0]
