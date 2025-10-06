@@ -94,6 +94,7 @@ class ParamExtractor:
                     try:
                         parsed = json.loads(content)
                         content = parsed.get("question") or content
+
                     except json.JSONDecodeError:
                         pass
 
@@ -149,7 +150,7 @@ class ParamExtractor:
             # print(">>> ERROR", e)
             traceback.print_exc()
         llm = self.get_llm(self.state)
-        # print(">>> SIMPLE EXTRACTION BEFORE LLM", question)
+        # print(">>> SIMPLE EXTRACTION BEFORE LLM", prompt)
         try:
             resp = (prompt | llm).invoke({})
             # print(">>> SIMPLE EXTRACTION RAW:", resp)

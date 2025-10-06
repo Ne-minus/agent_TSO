@@ -141,23 +141,23 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         )
 
         return {"messages": [resp], "ticket_name_chosen": None}
-    #     else:
-    #         print("WE'VE CALLED PARAMS TOOL")
-    #         resp = AIMessage(
-    #             content="Нам нужно завести заявку, даем пользователю подсказку с обращением в стороннюю систему.",
-    #             tool_calls=[
-    #                 {
-    #                     "name": "get_params_tool",
-    #                     "args": {
-    #                         "text": state.get("ticket_name_chosen"),
-    #                         "mode": "answer",
-    #                     },
-    #                     "id": f"call_{uuid.uuid4()}",
-    #                     "type": "tool_call",
-    #                 }
-    #             ],
-    #         )
-    #         return {**state, "messages": messages + [resp], "ticket_name_chosen": None}
+        # else:
+        #     print("WE'VE CALLED PARAMS TOOL")
+        #     resp = AIMessage(
+        #         content="Нам нужно завести заявку, даем пользователю подсказку с обращением в стороннюю систему.",
+        #         tool_calls=[
+        #             {
+        #                 "name": "get_params_tool",
+        #                 "args": {
+        #                     "text": state.get("ticket_name_chosen"),
+        #                     "mode": "answer",
+        #                 },
+        #                 "id": f"call_{uuid.uuid4()}",
+        #                 "type": "tool_call",
+        #             }
+        #         ],
+        #     )
+        #     return {**state, "messages": messages + [resp], "ticket_name_chosen": None}
 
     # print(f"WE ABOUT TO FILL PARAMS: {state.get('awaiting_param') }")
 

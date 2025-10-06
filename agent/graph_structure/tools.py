@@ -14,6 +14,7 @@ from agent.model.model_init import get_embeddings
 from agent.utils.extract_params import ParamExtractor
 from agent.utils.tree_strcture import TREE
 from contract.schemas import UserValidation
+import random
 
 KNOWLEDGE_BASE = FaissSearch(
     get_embeddings(), Settings.docs.knowledge.full_vector_store_path
@@ -81,6 +82,7 @@ def _search_next_one(
     tree: Dict[str, Dict],
     state: Annotated[dict, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
+    preambule: str = None,
 ):
     # print("WE ARE IN THE FUNCTION")
     # print(tree[curr_question])
@@ -126,7 +128,11 @@ def _search_next_one(
                 tree[curr_question][answer], tree, state, tool_call_id
             )
         else:
-            # print("WE RE GONNA ASK USER")
+            if preambule:
+                to_ask = f"{preambule} {curr_question}"
+            else:
+                to_ask = curr_question
+
             return Command(
                 goto="ticket",
                 update={
@@ -136,7 +142,7 @@ def _search_next_one(
                             #     {"type": "ask_user", "question": curr_question},
                             #     ensure_ascii=False,
                             # ),
-                            f"Нужно уточнить у пользователя ответ на следующий вопрос: {curr_question}",
+                            f"Нужно уточнить у пользователя ответ на следующий вопрос: {to_ask}",
                             tool_call_id=tool_call_id,
                             name="scenario_search_tool",
                         )
@@ -157,15 +163,25 @@ def scenario_search_tool(
     """
     Инструмент для поиска сценария, исходя из ответов пользователя на дополнительные вопросы.
     """
+
+    phrases = [
+        "Понимаю, что проблема связана с неисправностью. Чтобы разобраться точнее и понять, как это исправить, мне нужно задать вам несколько уточняющих вопросов.",
+        "Я вижу, что речь идёт о поломке. Чтобы определить причину и подобрать решение, позвольте задать несколько вопросов.",
+        "Похоже, возникла неисправность. Чтобы понять, в чём именно дело, мне нужно уточнить некоторые детали.",
+        "Понимаю, что у вас случилась поломка. Чтобы разобраться, что именно вышло из строя, мне потребуется задать пару уточняющих вопросов.",
+        "Похоже, что проблема связана с поломкой. Чтобы точно определить источник неисправности и помочь вам, я задам несколько уточняющих вопросов.",
+    ]
     # print("we're gonna search scenario")
     if entrypoint:
         curr_question = entrypoint
+        preambule = random.choice(phrases)
     else:
         curr_question = state["curr_question"]
+        preambule = None
 
     # print(curr_question)
     try:
-        result = _search_next_one(curr_question, TREE, state, tool_call_id)
+        result = _search_next_one(curr_question, TREE, state, tool_call_id, preambule)
         # print("STATE FLAG AFTER UPDATE:", state.get("ticket_not_started"))
 
         # print(f"SEARCH RESULT: {result}")
