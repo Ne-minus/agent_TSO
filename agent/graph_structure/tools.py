@@ -87,6 +87,7 @@ def _search_next_one(
     # print("WE ARE IN THE FUNCTION")
     # print(tree[curr_question])
     if tree[curr_question]["is_last"]:
+        print("Last message")
         if tree[curr_question]["if_comment"]:
 
             return Command(
@@ -118,12 +119,12 @@ def _search_next_one(
                 goto="ticket",
             )
     else:
-        # print("we go here")
+        print("we go here")
         extractor = ParamExtractor(state.get("llm"), state)
-        # print(extractor)
+        print(extractor)
         answer = extractor.simple_extraction(curr_question)
         if answer:
-            # print("Next question: ", tree[curr_question][answer])
+            print("Next question: ", tree[curr_question][answer])
             return _search_next_one(
                 tree[curr_question][answer], tree, state, tool_call_id
             )

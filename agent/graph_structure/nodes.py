@@ -135,10 +135,12 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
 
     # AFTER WE GOT TO THE END OF THE TREE
     if state.get("ticket_name_chosen") and state.get("if_comment"):
-        messages += f"Нам не нужно заводить заявку, даем пользователю подсказку с обращением в стороннюю систему. Вызови user_interaction_tool, где тебе нужно будет сказать, что ты понял запрос пользователя и  по данной проблеме нужно завести заявку в другой системе: {state.get('if_comment')}. Ты можешь на свое усмотрение перефразировать комментарий, ГЛАВНОЕ - БУДЬ ОЧЕНЬ ВЕЗЖЛИВ"
+        messages += f"Нам не нужно заводить заявку, даем пользователю подсказку с обращением в стороннюю систему. Вызови user_interaction_tool с mode='answer', где тебе нужно будет сказать, что ты понял запрос пользователя и  по данной проблеме нужно завести заявку в другой системе: {state.get('if_comment')}. Ты можешь на свое усмотрение перефразировать комментарий, ГЛАВНОЕ - БУДЬ ОЧЕНЬ ВЕЗЖЛИВ"
         resp = model.bind_tools([user_interaction_tool]).invoke(
             [system] + messages, config
         )
+
+        print("RESP1: ", resp)
 
         return {"messages": [resp], "ticket_name_chosen": None}
         # else:
@@ -244,6 +246,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         ]
         + GENERAL_TOOLS
     ).invoke([system] + messages, config)
+    print("TICKET RESPONSE: ", resp)
 
     return {"messages": [resp]}
 
@@ -253,7 +256,7 @@ def scenario_node(state: AgentState, config: RunnableConfig, model):
     # print(messages[-3:])
     if state["ticket_not_started"]:
         messages += [
-            f"\nСейчас нужно задать пользователю дополнительные вопросы. Для этого вызови search_scenario_tool(entrypoint='<НЕОБХОДИМЫЙ ВОПРОС>'). Заполнение параметра entrypoint зависит от запроса пользователя."
+            f"\nСейчас нужно задать пользователю дополнительные вопросы. Для этого вызови scenario_search_tool(entrypoint='<НЕОБХОДИМЫЙ ВОПРОС>'). Заполнение параметра entrypoint зависит от запроса пользователя."
         ]
         system = get_scenario_prompt()
         resp = model.bind_tools([scenario_search_tool]).invoke(
@@ -261,14 +264,14 @@ def scenario_node(state: AgentState, config: RunnableConfig, model):
         )
     else:
         messages += [
-            f"\nЕсли ты ранее получил вопрос из search_scenario_tool, но не задал его пользователю, то нужно спросить у пользователя ответ на этот помощью user_interaction_tool. Если пользователь тебе ответил, далее вызови search_scenario_tool() без каких-либо аргументов, чтобы продолжить задавать вопросы."
+            f"\nЕсли ты ранее получил вопрос из scenario_search_tool, но не задал его пользователю, то нужно спросить у пользователя ответ на этот помощью user_interaction_tool. Если пользователь тебе ответил, далее вызови scenario_search_tool() без каких-либо аргументов, чтобы продолжить задавать вопросы."
         ]
         system = get_scenario_prompt()
         resp = model.bind_tools([scenario_search_tool, user_interaction_tool]).invoke(
             [system] + messages, config
         )
 
-    # возвращаем всё сразу
+    print("SCENARIO RESPONSE: ", resp)
     return {"messages": [resp], "choice_in_progress": True}
 
 
