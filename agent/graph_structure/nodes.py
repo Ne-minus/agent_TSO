@@ -30,11 +30,13 @@ from agent.graph_structure.tools import (
     fill_params_tool,
     GENERAL_TOOLS,
     TICKET_TOOLS,
+    # SCENARIO_TOOLS,
 )
 
 
 TICKET_TOOL_NAMES: Set[str] = {t.name for t in TICKET_TOOLS if hasattr(t, "name")}
 GENERAL_TOOL_NAMES: Set[str] = {t.name for t in GENERAL_TOOLS if hasattr(t, "name")}
+# SCENARIO_TOOL_NAMES: Set[str] = {t.name for t in SCENARIO_TOOLS if hasattr(t, "name")}
 
 
 TOOLS_BY_NAME = {t.name: t for t in (GENERAL_TOOLS + TICKET_TOOLS)}
@@ -115,6 +117,19 @@ def _compose_prompt(if_ticket: bool = False, extra: str = "") -> str:
     else:
         system_prompt = create_system_prompt()
     return system_prompt + get_react_instructions() + (("\n" + extra) if extra else "")
+
+
+def reflect_node(state: AgentState, config: RunnableConfig, model):
+    messages = list(state["messages"])
+    system = SystemMessage(_compose_prompt())
+
+    if state.get("choice_in_progress"):
+        return Command(goto="scenario_node")
+
+    resp = model.bind_tools(GENERAL_TOOLS).invoke([system] + messages, config)
+    print(resp)
+
+    return {"messages": [resp]}
 
 
 def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
@@ -246,6 +261,10 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         ]
         + GENERAL_TOOLS
     ).invoke([system] + messages, config)
+
+    if "scenario_node" in resp.content:
+        print("WE GET SCENARIO NODE")
+        return {"messages": state["messages"] + [AIMessage(content="scenario_node")]}
     print("TICKET RESPONSE: ", resp)
 
     return {"messages": [resp]}
@@ -315,6 +334,26 @@ def should_route_scenario_reflect(state: AgentState):
     return "use_general_tool"
 
 
+def should_route_after_reflect(state: AgentState):
+    """
+    Куда идти после Reflection:
+      - если LLM вызвала ticket-инструмент → сначала в Ticket node (а не сразу в ToolNode),
+      - если вызвала общий инструмент → в общий ToolNode,
+      - если не было tool_calls → END.
+    """
+    last = state["messages"][-1]
+    calls = getattr(last, "tool_calls", None) or []
+
+    if "scenario_node" in last.content:
+        print("We go to scenario")
+        return "scenario_node"
+
+    for c in calls:
+        if c["name"] in TICKET_TOOL_NAMES:
+            return "use_ticket_tool"
+    return "use_general_tool"
+
+
 def should_route_after_ticket_reflect(state: AgentState):
     last = state["messages"][-1]
     content = getattr(last, "content", "")
@@ -364,6 +403,17 @@ def should_continue_after_ticket_tool(state: AgentState):
     return "ticket"
 
 
+def after_scenario_node(state: AgentState):
+    last = state["messages"][-1]
+    calls = getattr(last, "tool_calls", "")
+
+    for c in calls:
+        if c["name"] in SCENARIO_TOOL_NAMES:
+            return "use_scenario_tool"
+        else:
+            return "reflect"
+
+
 def after_general_tool(state: AgentState):
     """
     После общих инструментов:
@@ -372,6 +422,14 @@ def after_general_tool(state: AgentState):
     - иначе → reflect
     """
     # ADDED:
+    print("Here we are")
+    last = state["messages"][-1]
+    content = getattr(last, "content", "")
     if _was_question_asked(state):
         return "await_user"
-    return "ticket"
+
+    if "scenario_node" in content:
+        "We go to scenario"
+        return "scenario_node"
+    else:
+        return "ticket"

@@ -134,6 +134,8 @@ def _search_next_one(
             else:
                 to_ask = curr_question
 
+            print("TO ASK: ", to_ask)
+
             return Command(
                 goto="ticket",
                 update={
@@ -143,7 +145,7 @@ def _search_next_one(
                             #     {"type": "ask_user", "question": curr_question},
                             #     ensure_ascii=False,
                             # ),
-                            f"Нужно уточнить у пользователя ответ на следующий вопрос: {to_ask}",
+                            f"Нужно уточнить у пользователя ответ на следующий вопрос, не изменяя формулировку: {to_ask}",
                             tool_call_id=tool_call_id,
                             name="scenario_search_tool",
                         )
@@ -174,6 +176,7 @@ def scenario_search_tool(
     ]
     # print("we're gonna search scenario")
     if entrypoint:
+        print("WE GET PREAMBULE")
         curr_question = entrypoint
         preambule = random.choice(phrases)
     else:
@@ -189,7 +192,7 @@ def scenario_search_tool(
     except Exception as e:
         import traceback
 
-        # print(">>> ERROR", e)
+        print(">>> ERROR", e)
 
     return result
 
