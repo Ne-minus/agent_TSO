@@ -35,7 +35,10 @@ class ScenarioRequest(BaseModel):
     requester: UserContext
     branch: str
     scenario: str
+    description: str
     parameters: dict
+    building: AsunEntry
+    initial_problem: str
 
     def __str__(self):
         result = "Заявка\n"
@@ -63,7 +66,10 @@ class Formalize:
             requester=state.get("real_requester"),
             branch=state.get("chosen_scenario").branch,
             scenario=state.get("chosen_scenario").scenario,
+            description=state.get("chosen_scenario").description,
             parameters=state.get("ticket_data"),
+            building=state.get("current_building"),
+            initial_problem=state.get("last_user_message"),
         )
         return request
 
@@ -72,6 +78,12 @@ class Formalize:
     ) -> list[TicketEntry]:
         for field in information:
             match field.label:
+                case "Телефон для связи":
+                    field.value = request.requester.mobilePhoneNum
+                case "id объекта":
+                    field.value = request.building.asunId
+                case "Адрес":
+                    field.value = request.building.asunId
                 case "Сценарий":
                     field.value = request.scenario
 
@@ -80,16 +92,13 @@ class Formalize:
                         field.value = request.scenario
 
                 case "Неисправность":
-                    if "damage" in request.parameters:
-                        field.value = request.parameters["damage"]["value"]
-                    else:
-                        field.value = "Другое"
+                    field.value = request.description
 
                 case "Комментарий":
 
-                    params = "Параметры: \n"
+                    params = f"Основная проблема: {request.initial_problem}\n\n"
                     for param in request.parameters:
-                        params += f"{param}: {request.parameters[param]['value']}\n"
+                        params += f"{request.parameters[param]['description']}: {request.parameters[param]['value']}\n"
 
                     field.value = params
 

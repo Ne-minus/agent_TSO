@@ -77,6 +77,22 @@ def kb_search_tool(query: Annotated[str, "вопрос пользователя 
     return {"found": True, "answer": joined, "context": [d.dict() for d in ctx_docs]}
 
 
+def _get_candidates(ticket_chosen):
+    variants = SCENARIO.scenario_search(ticket_chosen, k=8)
+
+    other_variants = []
+
+    for i in variants:
+        if i["scenario_obj"].ticket_name == ticket_chosen:
+            scenario_processed = i["scenario"]
+        else:
+            other_variants.append(i["scenario"])
+
+    other_variants = "\n\n".join(other_variants[:2])
+
+    return scenario_processed, other_variants
+
+
 def _search_next_one(
     curr_question: str,
     tree: Dict[str, Dict],
@@ -105,11 +121,12 @@ def _search_next_one(
                 goto="ticket",
             )
         else:
+            scenario_processed, _ = _get_candidates(curr_question)
             return Command(
                 update={
                     "messages": [
                         ToolMessage(
-                            f"Необходимо завести заявку со следующим названием: {curr_question}",
+                            f"Необходимо завести заявку со следующим названием {curr_question} и описанием: {scenario_processed}",
                             tool_call_id=tool_call_id,
                         )
                     ],
@@ -223,6 +240,7 @@ def get_params_tool(
             parameters[param.name] = {
                 "info": f"{param._pretty_print()}",
                 "class_mode": param,
+                "description": param.description,
                 "value": None,
             }
 
@@ -277,7 +295,7 @@ def fill_params_tool(
     else:
         missing = state.get("missing_params")
 
-    # print(f"MISSING: {missing}")
+    print(f"MISSING: {missing}")
 
     if missing == []:
         # TODO: doublecheck logic

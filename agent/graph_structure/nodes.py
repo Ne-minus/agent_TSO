@@ -142,10 +142,10 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(if_ticket=True))
 
-    # print("FLAG FOR SCENARIO:", state.get("choice_in_progress"))
+    print("FLAG FOR SCENARIO:", state.get("choice_in_progress"))
 
     if state.get("choice_in_progress"):
-        # print("WE ARE CHOOSING SCENARIO")
+        print("WE ARE CHOOSING SCENARIO")
         return Command(goto="scenario_node")
 
     # AFTER WE GOT TO THE END OF THE TREE
@@ -264,7 +264,18 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
 
     if "scenario_node" in resp.content:
         print("WE GET SCENARIO NODE")
-        return {"messages": state["messages"] + [AIMessage(content="scenario_node")]}
+        last_user_msg = next(
+            (
+                m.content
+                for m in reversed(state["messages"])
+                if isinstance(m, HumanMessage)
+            ),
+            None,
+        )
+        return {
+            "messages": state["messages"] + [AIMessage(content="scenario_node")],
+            "last_user_message": last_user_msg,
+        }
     print("TICKET RESPONSE: ", resp)
 
     return {"messages": [resp]}

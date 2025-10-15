@@ -40,13 +40,13 @@ def _combine_info_for_ticket(
 ) -> TicketData:
     user = f"Пользователь: {user_info['name']['lastname']} {user_info['name']['firstname']} {user_info['name']['middlename']}. Табельный номер: {user_info['empid']}\n"
     building = f"Объект: {current_building['addr']}\n"
-    params = "Параметры: \n"
+    params = ""
     for param in ticket_data:
         logging.info("+" * 20)
         logging.info(param)
         logging.info(param.get("value"))
         logging.info("+" * 20)
-        params += f"{param}: {ticket_data[param]['value']}\n"
+        params += f"{param["description"]}: {ticket_data[param]['value']}\n"
     final_ticket = f"{user}\n{building}\n{params}\n{scenario}"
 
     return final_ticket
@@ -140,15 +140,19 @@ class AIAgent:
             "curr_question": None,
             "ticket_not_started": True,
             "choice_in_progress": False,
+            "messages": [AIMessage(content="Здравствуйте! Чем могу помочь?")],
+            "last_user_message": "",
         }
 
         self._graph.update_state(config, init_state)
 
-        init_message = f"Здравствуйте! Чем могу помочь?"
-        self._graph.update_state(
-            config, {"messages": [AIMessage(content=init_message)]}
+        # init_message = f"Здравствуйте! Чем могу помочь?"
+        # self._graph.update_state(
+        #     config, {"messages": [AIMessage(content=init_message)]}
+        # )
+        return CreateNewDialogRs(
+            dialogId=dialog_id, message="Здравствуйте! Чем могу помочь?"
         )
-        return CreateNewDialogRs(dialogId=dialog_id, message=init_message)
 
     def continue_conversation(
         self,
