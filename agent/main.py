@@ -13,7 +13,7 @@ from agent.graph_structure.tools import (
     get_params_tool,
     fill_params_tool,
 )
-from agent.graph_structure.graph import get_graph
+from agent.graph_structure.graph2 import get_graph
 from agent.model.model_init import get_llm
 from contract.schemas import (
     UserContext,
@@ -98,8 +98,6 @@ class AIAgent:
         msg: BaseMessage = state["messages"][-1]
         # print("MESSAGE: ", type(msg))
         text, action = self._normalize_result(msg.content) if msg else ""
-        # Готовим Action и ticketData из стейта
-        # (если твои узлы пишут action в другое место — подстрой тут)
         state_action = state.get("action")
         # print("ACTION: ", action)
         # print("STATE ACTION: ", state_action)
@@ -140,6 +138,7 @@ class AIAgent:
             "curr_question": None,
             "ticket_not_started": True,
             "choice_in_progress": False,
+            "variants_to_propose": "",
         }
 
         self._graph.update_state(config, init_state)

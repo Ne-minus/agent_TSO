@@ -30,3 +30,4 @@ class AgentState(TypedDict):
     curr_question: str = None
     ticket_not_started: bool = True
     choice_in_progress: bool = False
+    variants_to_propose: str

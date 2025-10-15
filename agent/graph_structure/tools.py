@@ -77,6 +77,22 @@ def kb_search_tool(query: Annotated[str, "вопрос пользователя 
     return {"found": True, "answer": joined, "context": [d.dict() for d in ctx_docs]}
 
 
+def _get_candidates(ticket_chosen):
+    variants = SCENARIO.scenario_search(ticket_chosen, k=8)
+
+    other_variants = []
+
+    for i in variants:
+        if i["scenario_obj"].ticket_name == ticket_chosen:
+            scenario_processed = i["scenario"]
+        else:
+            other_variants.append(i["scenario"])
+
+    other_variants = "\n\n".join(other_variants[:2])
+
+    return scenario_processed, other_variants
+
+
 def _search_next_one(
     curr_question: str,
     tree: Dict[str, Dict],
@@ -105,16 +121,18 @@ def _search_next_one(
                 goto="ticket",
             )
         else:
+            scenario_processed, other_variants = _get_candidates(curr_question)
             return Command(
                 update={
                     "messages": [
                         ToolMessage(
-                            f"Необходимо завести заявку со следующим названием: {curr_question}",
+                            f"Необходимо завести заявку со следующим названием и описанием:\n{scenario_processed}\n Заявки, которые могут подойти, если пользователю не подойдет выбранная:\n{other_variants}",
                             tool_call_id=tool_call_id,
                         )
                     ],
                     "choice_in_progress": False,
-                    "ticket_name_chosen": curr_question,
+                    "ticket_name_chosen": scenario_processed,
+                    "variants_to_propose": other_variants,
                 },
                 goto="ticket",
             )
@@ -314,7 +332,14 @@ def fill_params_tool(
             )
 
 
-GENERAL_TOOLS = [user_interaction_tool, kb_search_tool]
+GENERAL_TOOLS = [
+    user_interaction_tool,
+    kb_search_tool,
+    scenario_search_tool,
+    get_params_tool,
+    fill_params_tool,
+    ask_user_with_action_tool,
+]
 TICKET_TOOLS = [
     scenario_search_tool,
     get_params_tool,

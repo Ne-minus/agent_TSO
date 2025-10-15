@@ -169,7 +169,6 @@ def parse_excel(path: str) -> List[ExitScenarioPoint]:
         questions = group[group["field_name"] == "questions"]["field_value"].iloc[0]
         answers = group[group["field_name"] == "answers"]["field_value"].iloc[0]
 
-        # собираем примеры
         examples = (
             group[group["field_name"] == "ticket_description"]["examples"]
             .iloc[0]
@@ -225,9 +224,9 @@ def make_documents(exit_nodes: list[ExitScenarioPoint]) -> list[Document]:
     documents = []
 
     for node in exit_nodes:
-        for example in node.examples:
-            doc = Document(page_content=example, metadata={"node": node})
-            documents.append(doc)
+        page_content = f"{node.ticket_name}\n{node.description}"
+        doc = Document(page_content=page_content, metadata={"node": node})
+        documents.append(doc)
 
     return documents
 

@@ -5,7 +5,7 @@ import yaml
 
 # TODO come up with something better than this
 # prompts_path = Path("./resources") / "prompts.yaml"
-prompts_path = "agent/prompts/prompts_main.yaml"
+prompts_path = "agent/prompts/prompts_new.yaml"
 with open(prompts_path, "r", encoding="utf-8") as f:
     prompts = yaml.safe_load(f)
 
@@ -28,3 +28,7 @@ def get_formatting_prompt() -> str:
 
 def get_scenario_prompt() -> str:
     return prompts["scenario_system_prompt"] + "\n" + prompts["scenario_instructions"]
+
+
+def get_scenario_validation_prompt() -> str:
+    return prompts["scenario_validation"]
