@@ -1,7 +1,7 @@
-import faiss
+import asyncio
 import logging
+from typing import Optional
 from langchain_community.vectorstores import FAISS
-
 from langchain_core.embeddings import Embeddings
 from langchain_core.documents import Document
 
@@ -10,12 +10,9 @@ class FaissSearch:
     def __init__(
         self,
         embeddings: Embeddings,
-        vectorstore_path: str | None = None,
+        vectorstore_path: Optional[str] = None,
     ) -> None:
-
-        # Here we load already made index
-        # (for setting up we'd have separate class)
-
+        """Инициализация FAISS-поиска."""
         self.path = vectorstore_path
         self.vector_store_faiss = FAISS.load_local(
             folder_path=self.path,
@@ -24,44 +21,50 @@ class FaissSearch:
         )
         logging.info("[INIT]: Faiss vector store loaded")
 
-    def similarity_search(
+    # -------------------------
+    # Основные async-функции
+    # -------------------------
+
+    async def similarity_search(
         self,
         query: str,
         k: int,
-        score_threshold: float | None = None,
-        filter: dict[str, str] | None = None,
+        score_threshold: Optional[float] = None,
+        filter: Optional[dict[str, str]] = None,
     ) -> list[Document]:
-
-        results = self.vector_store_faiss.similarity_search_with_relevance_scores(
-            query=query, k=k, score_threshold=score_threshold, filter=filter
+        """Асинхронный поиск по FAISS (через поток)."""
+        results = await asyncio.to_thread(
+            self.vector_store_faiss.similarity_search_with_relevance_scores,
+            query,
+            k,
+            score_threshold,
+            filter,
         )
-        results = [doc for doc, score in results]
-        logging.info(f"[INFO]: We get results: {results}")
+        results = [doc for doc, _ in results]
         return results
 
-    def find_by_ids(self, ids: list[str]) -> list[Document]:
-        results = self.vector_store_faiss.get_by_ids([ids])
+    async def find_by_ids(self, ids: list[str]) -> list[Document]:
+        """Асинхронное получение документов по ID."""
+        results = await asyncio.to_thread(self.vector_store_faiss.get_by_ids, ids)
         return results
 
-    def scenario_search(
+    async def scenario_search(
         self,
         query: str,
         k: int,
-        score_threshold: float | None = None,
-        filter: dict[str, str] | None = None,
-    ) -> list[Document]:
-        """
-        Search for scenarios and its parameters.
-        """
-        top_k = self.similarity_search(
+        score_threshold: Optional[float] = None,
+        filter: Optional[dict[str, str]] = None,
+    ) -> list[dict]:
+        """Асинхронный поиск сценариев (через FAISS + обработка)."""
+        top_k = await self.similarity_search(
             query=query, k=k, score_threshold=score_threshold, filter=filter
         )
-        exit_scenarios = []
+
+        scenarios = []
         for doc in top_k:
-            node = doc.metadata["node"]
-            if node not in exit_scenarios:
-
-                exit_scenarios.append(
+            node = doc.metadata.get("node")
+            if node and node not in [s["scenario_obj"] for s in scenarios]:
+                scenarios.append(
                     {
                         "scenario_obj": node,
                         "scenario": node._pretty_print(),
@@ -69,4 +72,4 @@ class FaissSearch:
                     }
                 )
 
-        return exit_scenarios
+        return scenarios

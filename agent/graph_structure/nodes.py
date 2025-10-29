@@ -1,5 +1,6 @@
 import json
 import uuid
+import asyncio
 
 from typing import Set, List, Sequence
 from langchain_core.messages import (
@@ -12,6 +13,7 @@ from langchain_core.messages import (
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import interrupt, Command
 
+from agent.utils.extract_params import ParamExtractor
 from agent.graph_structure.state import AgentState
 from agent.prompts.prompts import (
     create_system_prompt,
@@ -78,38 +80,6 @@ def _extract_question(state: AgentState) -> str | None:
     return None
 
 
-def run_tools_and_wrap(ai_msg: AIMessage) -> list[ToolMessage]:
-    """Выполнить все tool_calls из AIMessage и вернуть список ToolMessage."""
-    tool_msgs: list[ToolMessage] = []
-    for tc in ai_msg.tool_calls or []:
-        name = tc["name"]
-        args = tc.get("args", {}) or {}
-        tool = TOOLS_BY_NAME.get(name)
-        if tool is None:
-            raise RuntimeError(f"LLM вызвал неизвестный инструмент: {name}")
-
-        try:
-            result = tool.invoke(args) if hasattr(tool, "invoke") else tool.func(**args)
-        except Exception as e:
-            result = {"error": f"{type(e).__name__}: {e}"}
-        if not isinstance(result, str):
-            try:
-                content = json.dumps(result, ensure_ascii=False)
-            except Exception:
-                content = str(result)
-        else:
-            content = result
-
-        tool_msgs.append(
-            ToolMessage(
-                content=content,
-                tool_call_id=tc["id"],
-                name=name,
-            )
-        )
-    return tool_msgs
-
-
 def _compose_prompt(if_ticket: bool = False, extra: str = "") -> str:
     """System prompt with extra instuctions of needed."""
     if if_ticket:
@@ -119,20 +89,7 @@ def _compose_prompt(if_ticket: bool = False, extra: str = "") -> str:
     return system_prompt + get_react_instructions() + (("\n" + extra) if extra else "")
 
 
-def reflect_node(state: AgentState, config: RunnableConfig, model):
-    messages = list(state["messages"])
-    system = SystemMessage(_compose_prompt())
-
-    if state.get("choice_in_progress"):
-        return Command(goto="scenario_node")
-
-    resp = model.bind_tools(GENERAL_TOOLS).invoke([system] + messages, config)
-    print(resp)
-
-    return {"messages": [resp]}
-
-
-def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
+async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     """
     Reflection during the process of ticket filling.
     Both general and ticket tools are allowed.
@@ -147,21 +104,28 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     if state.get("choice_in_progress"):
         print("WE ARE CHOOSING SCENARIO")
         return Command(goto="scenario_node")
-    
+
     # Проверяем, нужно ли обработать отказ пользователя от конкретной заявки
     # и переход на "Иные неисправности СКУД"
     if state.get("awaiting_fallback_confirmation"):
-        #from agent.utils.extract_params import ParamExtractor
+        # from agent.utils.extract_params import ParamExtractor
         extractor = ParamExtractor(state.get("llm"), state)
-        user_response = extractor.simple_extraction("Продолжим с заявкой 'Иные неисправности СКУД'?")
-        
+        user_response = extractor.simple_extraction(
+            "Продолжим с заявкой 'Иные неисправности СКУД'?"
+        )
+
         if user_response == "положительно":
             # Пользователь подтвердил, переходим к заполнению параметров
             messages.append(
-                HumanMessage(content="Пользователь подтвердил создание заявки 'Иные неисправности СКУД'. Вызови get_params_tool(ticket_name='Иные неисправности СКУД')")
+                HumanMessage(
+                    content="Пользователь подтвердил создание заявки 'Иные неисправности СКУД'. Вызови get_params_tool(ticket_name='Иные неисправности СКУД')"
+                )
             )
-            resp = model.bind_tools([get_params_tool]).invoke([system] + messages, config)
+            resp = await model.bind_tools([get_params_tool]).ainvoke(
+                [system] + messages, config
+            )
             return {"messages": [resp], "awaiting_fallback_confirmation": False}
+
         elif user_response == "отрицательно":
             # Пользователь отказался
             resp = AIMessage(
@@ -186,7 +150,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     # AFTER WE GOT TO THE END OF THE TREE
     if state.get("ticket_name_chosen") and state.get("if_comment"):
         messages += f"Нам не нужно заводить заявку, даем пользователю подсказку с обращением в стороннюю систему. Вызови user_interaction_tool с mode='answer', где тебе нужно будет сказать, что ты понял запрос пользователя и  по данной проблеме нужно завести заявку в другой системе: {state.get('if_comment')}. Ты можешь на свое усмотрение перефразировать комментарий, ГЛАВНОЕ - БУДЬ ОЧЕНЬ ВЕЗЖЛИВ"
-        resp = model.bind_tools([user_interaction_tool]).invoke(
+        resp = await model.bind_tools([user_interaction_tool]).ainvoke(
             [system] + messages, config
         )
 
@@ -234,8 +198,8 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
 
             # print("ASK FOR ACTION: ", messages[-1])
 
-            resp = model.bind_tools([ask_user_with_action_tool]).invoke(
-                [system] + messages + messages, config
+            resp = await model.bind_tools([ask_user_with_action_tool]).ainvoke(
+                [system] + messages, config
             )
             params_to_val.pop(0)
             if params_to_val == []:
@@ -254,7 +218,9 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             f"\nСейчас нужно начать запрашивать параметры по заявке. Обязательно вызови fill_param_tools()\n"
         ]
 
-        resp = model.bind_tools([fill_params_tool]).invoke([system] + messages, config)
+        resp = await model.bind_tools([fill_params_tool]).ainvoke(
+            [system] + messages, config
+        )
 
         return {
             "messages": [resp],
@@ -272,9 +238,9 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
                 f"\nСейчас нужно заполнить параметр {state.get('awaiting_param')} через user_interaction_tool. Далее вызови fill_param_tools(), так как  остались незаполненными другие необходимые параметры. Процесс заполнения заявки завершать НЕЛЬЗЯ!\n"
             ]
 
-        resp = model.bind_tools(
+        resp = await model.bind_tools(
             [fill_params_tool, user_interaction_tool] + GENERAL_TOOLS
-        ).invoke([SystemMessage(get_formatting_prompt())] + messages, config)
+        ).ainvoke([SystemMessage(get_formatting_prompt())] + messages, config)
 
         parameters_to_fill = state.get("ticket_data")
 
@@ -288,14 +254,14 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             "missing_params": new_missing,
         }
 
-    resp = model.bind_tools(
+    resp = await model.bind_tools(
         [
             get_params_tool,
             fill_params_tool,
             ask_user_with_action_tool,
         ]
         + GENERAL_TOOLS
-    ).invoke([system] + messages, config)
+    ).ainvoke([system] + messages, config)
 
     if "scenario_node" in resp.content:
         print("WE GET SCENARIO NODE")
@@ -316,7 +282,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     return {"messages": [resp]}
 
 
-def scenario_node(state: AgentState, config: RunnableConfig, model):
+async def scenario_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
     # print(messages[-3:])
     if state["ticket_not_started"]:
@@ -324,7 +290,7 @@ def scenario_node(state: AgentState, config: RunnableConfig, model):
             f"\nСейчас нужно задать пользователю дополнительные вопросы. Для этого вызови scenario_search_tool(entrypoint='<НЕОБХОДИМЫЙ ВОПРОС>'). Заполнение параметра entrypoint зависит от запроса пользователя."
         ]
         system = get_scenario_prompt()
-        resp = model.bind_tools([scenario_search_tool]).invoke(
+        resp = await model.bind_tools([scenario_search_tool]).ainvoke(
             [system] + messages, config
         )
     else:
@@ -332,15 +298,15 @@ def scenario_node(state: AgentState, config: RunnableConfig, model):
             f"\nЕсли ты ранее получил вопрос из scenario_search_tool, но не задал его пользователю, то нужно спросить у пользователя ответ на этот помощью user_interaction_tool. Если пользователь тебе ответил, далее вызови scenario_search_tool() без каких-либо аргументов, чтобы продолжить задавать вопросы."
         ]
         system = get_scenario_prompt()
-        resp = model.bind_tools([scenario_search_tool, user_interaction_tool]).invoke(
-            [system] + messages, config
-        )
+        resp = await model.bind_tools(
+            [scenario_search_tool, user_interaction_tool]
+        ).ainvoke([system] + messages, config)
 
     print("SCENARIO RESPONSE: ", resp)
     return {"messages": [resp], "choice_in_progress": True}
 
 
-def await_user_node(state: AgentState, *_):
+async def await_user_node(state: AgentState, *_):
     """
     Останавливает граф, спрашивает пользователя и ждёт resume с {"answer": "..."}.
     """
