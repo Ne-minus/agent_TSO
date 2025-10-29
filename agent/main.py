@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from typing import Any, Dict, Optional, Tuple, AsyncGenerator, Literal
 from uuid import uuid4
 from dotenv import load_dotenv
@@ -157,8 +158,10 @@ class AIAgent:
             "ticket_name_chosen": None,
             "if_comment": None,
             "curr_question": None,
+            "last_asked_question": None,
             "ticket_not_started": True,
             "choice_in_progress": False,
+            "awaiting_fallback_confirmation": False,
             "messages": [AIMessage(content="Здравствуйте! Чем могу помочь?")],
             "last_user_message": "",
         }
@@ -173,7 +176,7 @@ class AIAgent:
             dialogId=dialog_id, message="Здравствуйте! Чем могу помочь?"
         )
 
-    def continue_conversation(
+    async def continue_conversation(
         self,
         dialog_id: str,
         user_text: str,
@@ -195,16 +198,13 @@ class AIAgent:
             elif isinstance(context, AsunEntry):
                 self._graph.update_state(config, {"current_building": context})
 
-        result_state = self._graph.invoke(inputs, config=config)
+        result_state = await self._graph.ainvoke(inputs, config=config)
         return self._finalize(result_state)
 
 
 if __name__ == "__main__":
-
-    # Load enviroment
     load_dotenv()
 
-    # Initialization
     agent = AIAgent()
 
     user = UserContext(
@@ -218,38 +218,46 @@ if __name__ == "__main__":
         asunId="77", addr="г. Москва, пр-кт Кутузовский, 32 к3 стрБ, Б.05.05, Б.05.05.1"
     )
 
-    # Handshake - get a conversation id
-    answer = agent.create_conversation(user)
-    dialog_id = answer.dialogId
-    print(answer.message)
+    async def main():
+        # Инициализация диалога
+        answer = agent.create_conversation(user)
+        dialog_id = answer.dialogId
+        print(answer.message)
 
-    # Conversation loop
-    while True:
-        query = input("Ваше сообщение: ")
-        context = None
+        # Основной цикл общения
+        while True:
+            query = input("Ваше сообщение: ")
+            context = None
 
-        if answer.action == "SELECT_INNER_CLIENT":
-            if query == "да":
-                context = user
-            else:
-                context = UserContext(
-                    name=Name(
-                        lastname="Неминова",
-                        firstname="Екатерина",
-                        middlename="Сергеевна",
-                    ),
-                    empid="22434455",
-                    departamentCode="10393702",
-                    departamentName="Группа разработки",
+            # === обработка выбора клиента ===
+            if answer.action == "SELECT_INNER_CLIENT":
+                if query.strip().lower() in ["да", "ага", "верно"]:
+                    context = user
+                else:
+                    context = UserContext(
+                        name=Name(
+                            lastname="Неминова",
+                            firstname="Екатерина",
+                            middlename="Сергеевна",
+                        ),
+                        empid="22434455",
+                        departamentCode="10393702",
+                        departamentName="Группа разработки",
+                    )
+
+            # === обработка выбора здания ===
+            elif answer.action == "SELECT_ASUN_BUILDING":
+                context = AsunEntry(
+                    asunId="77",
+                    addr="г. Москва, пр-кт Кутузовский, 32 к3 стрБ, Б.05.05, Б.05.05.1",
                 )
 
-        elif answer.action == "SELECT_ASUN_BUILDING":
-            context = AsunEntry(
-                asunId="77",
-                addr="г. Москва, пр-кт Кутузовский, 32 к3 стрБ, Б.05.05, Б.05.05.1",
+            # ⚠️ Асинхронный вызов агента
+            answer = await agent.continue_conversation(
+                str(dialog_id), query, context=context
             )
 
-        answer = agent.continue_conversation(str(dialog_id), query, context=context)
+            print("Агент:", answer.message)
+            print()
 
-        print("Агент: ", answer.message)
-        print()
+    asyncio.run(main())

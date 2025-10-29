@@ -32,7 +32,7 @@ SCENARIO = FaissSearch(
 
 
 @tool
-def ask_user_with_action_tool(
+async def ask_user_with_action_tool(
     text: Annotated[str, "Вопрос пользователю"],
     action: Annotated[str, "Название параметра для стейта"],
 ) -> dict:
@@ -44,7 +44,7 @@ def ask_user_with_action_tool(
 
 
 @tool
-def user_interaction_tool(
+async def user_interaction_tool(
     text: Annotated[str, "текст для пользователя (либо ответ, либо вопрос)"],
     mode: Annotated[
         Literal["answer", "ask"],
@@ -66,9 +66,11 @@ def user_interaction_tool(
 
 
 @tool
-def kb_search_tool(query: Annotated[str, "вопрос пользователя по базе знаний"]) -> dict:
+async def kb_search_tool(
+    query: Annotated[str, "вопрос пользователя по базе знаний"],
+) -> dict:
     """RAG для ответа на общие вопросы, касающиеся технических средств охраны в банке."""
-    ctx_docs: list[Document] = KNOWLEDGE_BASE.similarity_search(query, k=2)
+    ctx_docs: list[Document] = await KNOWLEDGE_BASE.similarity_search(query, k=2)
     if not ctx_docs:
         return {"found": False, "answer": None, "context": []}
 
@@ -84,8 +86,8 @@ def kb_search_tool(query: Annotated[str, "вопрос пользователя 
     return {"found": True, "answer": joined, "context": [d.dict() for d in ctx_docs]}
 
 
-def _get_candidates(ticket_chosen):
-    variants = SCENARIO.scenario_search(ticket_chosen, k=8)
+async def _get_candidates(ticket_chosen):
+    variants = await SCENARIO.scenario_search(ticket_chosen, k=8)
 
     other_variants = []
 
@@ -100,7 +102,7 @@ def _get_candidates(ticket_chosen):
     return scenario_processed, other_variants
 
 
-def _search_next_one(
+async def _search_next_one(
     curr_question: str,
     tree: Dict[str, Dict],
     state: Annotated[dict, InjectedState] = None,
@@ -111,7 +113,24 @@ def _search_next_one(
     # print(tree[curr_question])
     if tree[curr_question]["is_last"]:
         print("Last message")
-        if tree[curr_question]["if_comment"]:
+
+        # Проверяем, является ли это успешным завершением (проблема решена)
+        if tree[curr_question].get("is_resolved", False):
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            f"Проблема решена. Сообщи пользователю: {tree[curr_question]['if_comment']}",
+                            tool_call_id=tool_call_id,
+                        )
+                    ],
+                    "choice_in_progress": False,
+                    "ticket_name_chosen": None,
+                    "if_comment": True,
+                },
+                goto="ticket",
+            )
+        elif tree[curr_question]["if_comment"]:
 
             return Command(
                 update={
@@ -128,7 +147,7 @@ def _search_next_one(
                 goto="ticket",
             )
         else:
-            scenario_processed, _ = _get_candidates(curr_question)
+            scenario_processed, _ = await _get_candidates(curr_question)
             return Command(
                 update={
                     "messages": [
@@ -144,10 +163,12 @@ def _search_next_one(
             )
     else:
         extractor = ParamExtractor(state.get("llm"), state)
-        answer = extractor.simple_extraction(curr_question)
+        answer = await extractor.simple_extraction(curr_question)
+
         if answer:
-            # logger.debug(f"Next question: {tree[curr_question][answer]}")
-            return _search_next_one(
+            # print(f"Найден ответ '{answer}' на вопрос '{curr_question}'")
+            # print("Next question: ", tree[curr_question][answer])
+            return await _search_next_one(
                 tree[curr_question][answer], tree, state, tool_call_id
             )
         else:
@@ -180,7 +201,7 @@ def _search_next_one(
 
 
 @tool
-def scenario_search_tool(
+async def scenario_search_tool(
     state: Annotated[dict, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
     entrypoint: Optional[str] = None,
@@ -207,7 +228,9 @@ def scenario_search_tool(
 
     # print(curr_question)
     try:
-        result = _search_next_one(curr_question, TREE, state, tool_call_id, preambule)
+        result = await _search_next_one(
+            curr_question, TREE, state, tool_call_id, preambule
+        )
         # print("STATE FLAG AFTER UPDATE:", state.get("ticket_not_started"))
 
         # print(f"SEARCH RESULT: {result}")
@@ -220,7 +243,7 @@ def scenario_search_tool(
 
 
 @tool
-def get_params_tool(
+async def get_params_tool(
     ticket_name: Annotated[str, "Название заявки"],
     state: Annotated[dict, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
@@ -228,7 +251,58 @@ def get_params_tool(
     """
     Находит необходимый сценарий, а затем извлекает список параметров, неоьходимых для заполнения заявки по данному сценарию.
     """
-    scenario_raw = SCENARIO.scenario_search(ticket_name, k=10)
+
+    # Проверяем, был ли отказ от предыдущей заявки и переход на "Иные неисправности СКУД"
+    messages = state.get("messages", [])
+
+    # Ищем вопрос о подходящей заявке в последних сообщениях
+    for m in reversed(messages[-5:]):  # Проверяем последние 5 сообщений
+        if (
+            isinstance(m, ToolMessage)
+            and getattr(m, "name", "") == "user_interaction_tool"
+        ):
+            content = str(getattr(m, "content", ""))
+            try:
+                parsed = json.loads(content)
+                question = parsed.get("question", "")
+                # Если нашли вопрос о подходящей заявке
+                if (
+                    "Вам подходит заявка" in question
+                    and "Иные неисправности СКУД" in question
+                ):
+                    # Проверяем ответ пользователя
+                    # from agent.utils.extract_params import ParamExtractor
+                    extractor = ParamExtractor(state.get("llm"), state)
+                    user_response = await extractor.simple_extraction(
+                        "Вам подходит заявка"
+                    )
+
+                    if user_response == "отрицательно":
+                        # Пользователь отказался, нужно сначала оповестить о переходе на "Иные неисправности"
+                        return Command(
+                            update={
+                                "messages": [
+                                    ToolMessage(
+                                        content=json.dumps(
+                                            {
+                                                "type": "ask_user",
+                                                "question": "Так как данная заявка Вам не подходит, предлагаю завести обобщенную заявку <Иные неисправности СКУД>, где я подробно зафиксирую вашу неисправность. Продолжим?",
+                                            },
+                                            ensure_ascii=False,
+                                        ),
+                                        tool_call_id=tool_call_id,
+                                        name="user_interaction_tool",
+                                    )
+                                ],
+                                "awaiting_fallback_confirmation": True,
+                            },
+                            goto="ticket",
+                        )
+                    break
+            except json.JSONDecodeError:
+                pass
+
+    scenario_raw = await SCENARIO.scenario_search(ticket_name, k=10)
     # print("CANDIDATES: ", scenario_raw)
 
     # TODO: fix database management and creation
@@ -275,7 +349,7 @@ def get_params_tool(
 
 
 @tool
-def fill_params_tool(
+async def fill_params_tool(
     state: Annotated[dict, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ) -> Command:
@@ -286,7 +360,7 @@ def fill_params_tool(
     """
     params_to_fill = state.get("ticket_data")
     exctractor = ParamExtractor(state.get("llm"), state)
-    data_from_history = exctractor.run_exctraction()
+    data_from_history = await exctractor.run_exctraction()
     # print("FROM HISTORY: ", data_from_history)
 
     for param, value in data_from_history.items():
