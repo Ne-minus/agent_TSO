@@ -161,7 +161,7 @@ async def _search_next_one(
         if answer:
             # print(f"Найден ответ '{answer}' на вопрос '{curr_question}'")
             # print("Next question: ", tree[curr_question][answer])
-            return _search_next_one(
+            return await _search_next_one(
                 tree[curr_question][answer], tree, state, tool_call_id
             )
         else:
@@ -266,7 +266,9 @@ async def get_params_tool(
                     # Проверяем ответ пользователя
                     # from agent.utils.extract_params import ParamExtractor
                     extractor = ParamExtractor(state.get("llm"), state)
-                    user_response = extractor.simple_extraction("Вам подходит заявка")
+                    user_response = await extractor.simple_extraction(
+                        "Вам подходит заявка"
+                    )
 
                     if user_response == "отрицательно":
                         # Пользователь отказался, нужно сначала оповестить о переходе на "Иные неисправности"
@@ -293,7 +295,7 @@ async def get_params_tool(
             except json.JSONDecodeError:
                 pass
 
-    scenario_raw = SCENARIO.scenario_search(ticket_name, k=10)
+    scenario_raw = await SCENARIO.scenario_search(ticket_name, k=10)
     # print("CANDIDATES: ", scenario_raw)
 
     # TODO: fix database management and creation

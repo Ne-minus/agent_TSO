@@ -35,10 +35,10 @@ class FaissSearch:
         """Асинхронный поиск по FAISS (через поток)."""
         results = await asyncio.to_thread(
             self.vector_store_faiss.similarity_search_with_relevance_scores,
-            query,
-            k,
-            score_threshold,
-            filter,
+            query=query,
+            k=k,
+            score_threshold=score_threshold,
+            filter=filter,
         )
         results = [doc for doc, _ in results]
         return results
