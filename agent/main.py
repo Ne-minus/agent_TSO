@@ -134,7 +134,7 @@ class AIAgent:
 
         return MessageToAgentRs(message=text, action=action, ticketData=ticket_data)
 
-    def create_conversation(
+    async def create_conversation(
         self,
         user: UserContext,
     ) -> CreateNewDialogRs:

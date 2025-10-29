@@ -32,7 +32,7 @@ async def dialogs(
 ):
     time = datetime.now()
     logger.debug(f"На API получен запрос {x_request_id}.")
-    response = agent.create_conversation(user_context)
+    response = await agent.create_conversation(user_context)
     logger.debug(f"Ответ на запрос API {x_request_id} отправлен. Время выполнения {datetime.now() - time}.")
     return response
 
@@ -51,7 +51,7 @@ async def dialog_by_id(
     logger.debug(f"На API получен запрос {x_request_id}.")
     if not message.context:
         message.context = None
-    response = agent.continue_conversation(
+    response = await agent.continue_conversation(
         str(dialogId), message.message, context=message.context
     )
     logger.debug(f"Ответ на запрос API {x_request_id} отправлен. Время выполнения {datetime.now() - time}.")
