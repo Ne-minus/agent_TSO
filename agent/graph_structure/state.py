@@ -28,6 +28,8 @@ class AgentState(TypedDict):
     ticket_name_chosen: str = None
     if_comment: str = None
     curr_question: str = None
+    last_asked_question: str = None
     ticket_not_started: bool = True
     choice_in_progress: bool = False
+    awaiting_fallback_confirmation: bool = False
     last_user_message: str
