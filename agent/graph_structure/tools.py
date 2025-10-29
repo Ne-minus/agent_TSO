@@ -104,7 +104,24 @@ def _search_next_one(
     # print(tree[curr_question])
     if tree[curr_question]["is_last"]:
         print("Last message")
-        if tree[curr_question]["if_comment"]:
+        
+        # Проверяем, является ли это успешным завершением (проблема решена)
+        if tree[curr_question].get("is_resolved", False):
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            f"Проблема решена. Сообщи пользователю: {tree[curr_question]['if_comment']}",
+                            tool_call_id=tool_call_id,
+                        )
+                    ],
+                    "choice_in_progress": False,
+                    "ticket_name_chosen": None,
+                    "if_comment": True,
+                },
+                goto="ticket",
+            )
+        elif tree[curr_question]["if_comment"]:
 
             return Command(
                 update={
@@ -139,9 +156,16 @@ def _search_next_one(
         print("we go here")
         extractor = ParamExtractor(state.get("llm"), state)
         print(extractor)
+        
+        # Проверяем, есть ли ответ на вопрос в истории
+        # simple_extraction сам проверит:
+        # 1) Был ли вопрос задан ранее
+        # 2) Есть ли ответ пользователя ПОСЛЕ вопроса
         answer = extractor.simple_extraction(curr_question)
+        
         if answer:
-            print("Next question: ", tree[curr_question][answer])
+            # print(f"Найден ответ '{answer}' на вопрос '{curr_question}'")
+            # print("Next question: ", tree[curr_question][answer])
             return _search_next_one(
                 tree[curr_question][answer], tree, state, tool_call_id
             )
@@ -223,6 +247,49 @@ def get_params_tool(
     """
     Находит необходимый сценарий, а затем извлекает список параметров, неоьходимых для заполнения заявки по данному сценарию.
     """
+    
+    # Проверяем, был ли отказ от предыдущей заявки и переход на "Иные неисправности СКУД"
+    messages = state.get("messages", [])
+    
+    # Ищем вопрос о подходящей заявке в последних сообщениях
+    for m in reversed(messages[-5:]):  # Проверяем последние 5 сообщений
+        if isinstance(m, ToolMessage) and getattr(m, "name", "") == "user_interaction_tool":
+            content = str(getattr(m, "content", ""))
+            try:
+                parsed = json.loads(content)
+                question = parsed.get("question", "")
+                # Если нашли вопрос о подходящей заявке
+                if "Вам подходит заявка" in question and "Иные неисправности СКУД" in question:
+                    # Проверяем ответ пользователя
+                    #from agent.utils.extract_params import ParamExtractor
+                    extractor = ParamExtractor(state.get("llm"), state)
+                    user_response = extractor.simple_extraction("Вам подходит заявка")
+                    
+                    if user_response == "отрицательно":
+                        # Пользователь отказался, нужно сначала оповестить о переходе на "Иные неисправности"
+                        return Command(
+                            update={
+                                "messages": [
+                                    ToolMessage(
+                                        content=json.dumps(
+                                            {
+                                                "type": "ask_user",
+                                                "question": "Так как данная заявка Вам не подходит, предлагаю завести обобщенную заявку <Иные неисправности СКУД>, где я подробно зафиксирую вашу неисправность. Продолжим?"
+                                            },
+                                            ensure_ascii=False,
+                                        ),
+                                        tool_call_id=tool_call_id,
+                                        name="user_interaction_tool",
+                                    )
+                                ],
+                                "awaiting_fallback_confirmation": True,
+                            },
+                            goto="ticket",
+                        )
+                    break
+            except json.JSONDecodeError:
+                pass
+    
     scenario_raw = SCENARIO.scenario_search(ticket_name, k=10)
     # print("CANDIDATES: ", scenario_raw)
 

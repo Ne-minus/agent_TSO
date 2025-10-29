@@ -138,8 +138,10 @@ class AIAgent:
             "ticket_name_chosen": None,
             "if_comment": None,
             "curr_question": None,
+            "last_asked_question": None,
             "ticket_not_started": True,
             "choice_in_progress": False,
+            "awaiting_fallback_confirmation": False,
             "messages": [AIMessage(content="Здравствуйте! Чем могу помочь?")],
             "last_user_message": "",
         }

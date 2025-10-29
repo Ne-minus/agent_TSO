@@ -147,6 +147,41 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     if state.get("choice_in_progress"):
         print("WE ARE CHOOSING SCENARIO")
         return Command(goto="scenario_node")
+    
+    # Проверяем, нужно ли обработать отказ пользователя от конкретной заявки
+    # и переход на "Иные неисправности СКУД"
+    if state.get("awaiting_fallback_confirmation"):
+        #from agent.utils.extract_params import ParamExtractor
+        extractor = ParamExtractor(state.get("llm"), state)
+        user_response = extractor.simple_extraction("Продолжим с заявкой 'Иные неисправности СКУД'?")
+        
+        if user_response == "положительно":
+            # Пользователь подтвердил, переходим к заполнению параметров
+            messages.append(
+                HumanMessage(content="Пользователь подтвердил создание заявки 'Иные неисправности СКУД'. Вызови get_params_tool(ticket_name='Иные неисправности СКУД')")
+            )
+            resp = model.bind_tools([get_params_tool]).invoke([system] + messages, config)
+            return {"messages": [resp], "awaiting_fallback_confirmation": False}
+        elif user_response == "отрицательно":
+            # Пользователь отказался
+            resp = AIMessage(
+                content="Хорошо, если у вас возникнут вопросы — обращайтесь снова.",
+                tool_calls=[
+                    {
+                        "name": "user_interaction_tool",
+                        "args": {
+                            "text": "Хорошо, если у вас возникнут вопросы — обращайтесь снова.",
+                            "mode": "answer",
+                        },
+                        "id": f"call_{uuid.uuid4()}",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+            return {"messages": [resp], "awaiting_fallback_confirmation": False}
+        else:
+            # Ещё не ответил, продолжаем ждать
+            return {}
 
     # AFTER WE GOT TO THE END OF THE TREE
     if state.get("ticket_name_chosen") and state.get("if_comment"):
