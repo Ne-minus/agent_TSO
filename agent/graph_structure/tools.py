@@ -1,3 +1,5 @@
+import logging
+
 from langchain_core.tools import tool, InjectedToolCallId
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from typing import List, Annotated, Dict, Literal, Optional, Any
@@ -15,6 +17,11 @@ from agent.utils.extract_params import ParamExtractor
 from agent.utils.tree_strcture import TREE
 from contract.schemas import UserValidation
 import random
+
+
+from uvicorn.config import logger
+
+# logger = logging.getLogger("tools")
 
 KNOWLEDGE_BASE = FaissSearch(
     get_embeddings(), Settings.docs.knowledge.full_vector_store_path
@@ -136,12 +143,10 @@ def _search_next_one(
                 goto="ticket",
             )
     else:
-        print("we go here")
         extractor = ParamExtractor(state.get("llm"), state)
-        print(extractor)
         answer = extractor.simple_extraction(curr_question)
         if answer:
-            print("Next question: ", tree[curr_question][answer])
+            # logger.debug(f"Next question: {tree[curr_question][answer]}")
             return _search_next_one(
                 tree[curr_question][answer], tree, state, tool_call_id
             )
@@ -151,7 +156,7 @@ def _search_next_one(
             else:
                 to_ask = curr_question
 
-            print("TO ASK: ", to_ask)
+            # logger.debug(f"TO ASK: {to_ask}")
 
             return Command(
                 goto="ticket",
@@ -193,7 +198,7 @@ def scenario_search_tool(
     ]
     # print("we're gonna search scenario")
     if entrypoint:
-        print("WE GET PREAMBULE")
+        # logger.debug("WE GET PREAMBULE")
         curr_question = entrypoint
         preambule = random.choice(phrases)
     else:

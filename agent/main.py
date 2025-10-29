@@ -4,6 +4,8 @@ from uuid import uuid4
 from dotenv import load_dotenv
 import json
 
+from datetime import datetime
+
 from langchain_core.messages import HumanMessage, BaseMessage, AIMessage, ToolMessage
 from agent.graph_structure.state import AgentState
 from agent.graph_structure.tools import (
@@ -25,14 +27,31 @@ from contract.schemas import (
     Name,
 )
 from agent.utils.create_ticket import Formalize
+from langchain_core.callbacks import BaseCallbackHandler
+
+logger = logging.getLogger("agent")
 
 # если в build_graph уже вшит checkpointer — просто вызываем его.
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
+
+
+class RawHTTPCallback(BaseCallbackHandler):
+    def __init__(self):
+        super().__init__()
+        self.time = None
+
+    def on_llm_start(self, serialized, prompts, **kwargs):
+        self.time = datetime.now()
+        logger.debug(f"Отправка запроса в GigaChat")
+
+    def on_llm_end(self, response, **kwargs):
+        self.time = datetime.now() - self.time
+        logger.debug(f"Ответ от GigaChat получен. x-request-id - {response.llm_output["x_headers"]["x-request-id"]} Время выполнения запроса в GigaChat: {self.time}")
 
 
 def _thread_config(thread_id: str) -> Dict[str, Any]:
-
-    return {"configurable": {"thread_id": thread_id}}
+    # return {"configurable": {"thread_id": thread_id}}
+    return {"configurable": {"thread_id": thread_id}, "callbacks": [RawHTTPCallback()]}
 
 
 def _combine_info_for_ticket(

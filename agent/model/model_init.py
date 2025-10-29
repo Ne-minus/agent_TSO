@@ -25,6 +25,7 @@ def get_embeddings() -> GigaChatEmbeddings:
 def get_llm() -> GigaChat:
 
     model = GigaChat(
+        # verbose=True,
         model=Settings.models.llm_model_type,
         credentials=os.environ["GIGACHAIN_AUTH"],
         scope=os.environ["GIGACHAT_SCOPE"],

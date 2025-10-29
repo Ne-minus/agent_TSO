@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 
 from typing import Set, List, Sequence
@@ -32,6 +33,9 @@ from agent.graph_structure.tools import (
     TICKET_TOOLS,
     # SCENARIO_TOOLS,
 )
+
+
+logger = logging.getLogger("nodes")
 
 
 TICKET_TOOL_NAMES: Set[str] = {t.name for t in TICKET_TOOLS if hasattr(t, "name")}
@@ -119,19 +123,6 @@ def _compose_prompt(if_ticket: bool = False, extra: str = "") -> str:
     return system_prompt + get_react_instructions() + (("\n" + extra) if extra else "")
 
 
-def reflect_node(state: AgentState, config: RunnableConfig, model):
-    messages = list(state["messages"])
-    system = SystemMessage(_compose_prompt())
-
-    if state.get("choice_in_progress"):
-        return Command(goto="scenario_node")
-
-    resp = model.bind_tools(GENERAL_TOOLS).invoke([system] + messages, config)
-    print(resp)
-
-    return {"messages": [resp]}
-
-
 def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     """
     Reflection during the process of ticket filling.
@@ -142,10 +133,10 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(if_ticket=True))
 
-    print("FLAG FOR SCENARIO:", state.get("choice_in_progress"))
+    # logger.debug(f"FLAG FOR SCENARIO: {state.get("choice_in_progress")}")
 
     if state.get("choice_in_progress"):
-        print("WE ARE CHOOSING SCENARIO")
+        # logger.debug("WE ARE CHOOSING SCENARIO")
         return Command(goto="scenario_node")
 
     # AFTER WE GOT TO THE END OF THE TREE
@@ -154,8 +145,6 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         resp = model.bind_tools([user_interaction_tool]).invoke(
             [system] + messages, config
         )
-
-        print("RESP1: ", resp)
 
         return {"messages": [resp], "ticket_name_chosen": None}
         # else:
@@ -263,7 +252,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     ).invoke([system] + messages, config)
 
     if "scenario_node" in resp.content:
-        print("WE GET SCENARIO NODE")
+        # logger.debug("WE GET SCENARIO NODE")
         last_user_msg = next(
             (
                 m.content
@@ -276,7 +265,7 @@ def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             "messages": state["messages"] + [AIMessage(content="scenario_node")],
             "last_user_message": last_user_msg,
         }
-    print("TICKET RESPONSE: ", resp)
+    # logger.debug(f"TICKET RESPONSE: {resp}")
 
     return {"messages": [resp]}
 
@@ -301,7 +290,7 @@ def scenario_node(state: AgentState, config: RunnableConfig, model):
             [system] + messages, config
         )
 
-    print("SCENARIO RESPONSE: ", resp)
+    # logger.debug(f"SCENARIO RESPONSE: {resp}")
     return {"messages": [resp], "choice_in_progress": True}
 
 
@@ -356,7 +345,7 @@ def should_route_after_reflect(state: AgentState):
     calls = getattr(last, "tool_calls", None) or []
 
     if "scenario_node" in last.content:
-        print("We go to scenario")
+        # logger.debug("We go to scenario")
         return "scenario_node"
 
     for c in calls:
@@ -433,7 +422,6 @@ def after_general_tool(state: AgentState):
     - иначе → reflect
     """
     # ADDED:
-    print("Here we are")
     last = state["messages"][-1]
     content = getattr(last, "content", "")
     if _was_question_asked(state):
