@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any, Dict, List
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
@@ -6,6 +7,9 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 from agent.retriever.data import ParameterSpecification
 from agent.model.model_init import get_llm
+
+
+logger = logging.getLogger("agent")
 
 
 class ParamExtractor:
@@ -63,8 +67,6 @@ class ParamExtractor:
             - «Кутузовский проспект, 12» → {{"location": None}}  # это адрес, не `location`
             """
 
-        print(specs)
-
         human = (
             f"Параметры заявки:\n" + specs + "\n\n"
             f"История сообщений пользователя:\n{history}\n"
@@ -93,12 +95,9 @@ class ParamExtractor:
             resp = await (prompt | llm).ainvoke({})
             raw = getattr(resp, "content", resp)
             data = self.safe_json_parse(raw if isinstance(raw, str) else str(raw))
-
+            return data
         except Exception as e:
-            print(">>> ERROR", e)
-            data = {}
-
-        return data
+            logger.error(e)
 
     def collect_dialogue(self) -> str:
         msgs = self.state.get("messages", [])
@@ -213,8 +212,6 @@ class ParamExtractor:
             history = self.collect_dialogue()
         except Exception as e:
             import traceback
-
-            # print(">>> ERROR", e)
             traceback.print_exc()
 
         sys = """Тебе необходимо извлечь ответ на вопрос из истории диалога. 
@@ -257,29 +254,20 @@ class ParamExtractor:
             prompt = ChatPromptTemplate.from_messages(
                 [("system", sys), ("human", human)], template_format="jinja2"
             )
-            # print("PROMPT: ", prompt)
         except Exception as e:
-            # print(">>> ERROR", e)
             traceback.print_exc()
         llm = self.get_llm(self.state)
-        # print(">>> SIMPLE EXTRACTION BEFORE LLM", prompt)
         try:
             resp = await (prompt | llm).ainvoke({})
-            print(
-                f">>> SIMPLE EXTRACTION для вопроса '{question}': {resp.content if hasattr(resp, 'content') else resp}"
-            )
+            logger.debug(f"Вопрос, который нужно задать пользователю: '{question}': {resp.content if hasattr(resp, 'content') else resp}")
         except Exception as e:
             import traceback
-
-            # print(">>> ERROR in invoke:", e)
             traceback.print_exc()
             resp = None
 
         # достаём текст
         raw = getattr(resp, "content", resp)
         text = raw.strip() if isinstance(raw, str) else str(raw).strip()
-        # print(">>> SIMPLE EXTRACTION TEXT:", text)
-
         if text == "None":
             return None
         return text

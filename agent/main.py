@@ -120,9 +120,7 @@ class AIAgent:
         msg: BaseMessage = state["messages"][-1]
         # print("MESSAGE: ", type(msg))
         text, action = self._normalize_result(msg.content) if msg else ""
-        print("BEFORE FORMAT: ", text)
         text = re.sub("\\n", "<br />", md.render(text))
-        print("AFTER FORMAT: ", text)
         # Готовим Action и ticketData из стейта
         # (если твои узлы пишут action в другое место — подстрой тут)
         state_action = state.get("action")
