@@ -167,48 +167,48 @@ class ParamExtractor:
     async def simple_extraction(self, question: str):
         # print(">>> SIMPLE EXTRACTION START", question)
 
-        # Сначала проверяем, был ли вопрос задан
-        if not self.was_question_asked_before(question):
-            # print(f">>> Вопрос '{question}' НЕ был задан ранее, возвращаем None")
-            return None
+        # # Сначала проверяем, был ли вопрос задан
+        # if not self.was_question_asked_before(question):
+        #     print(f">>> Вопрос '{question}' НЕ был задан ранее, возвращаем None")
+        #     return None
 
-        # Проверяем, есть ли ответ пользователя ПОСЛЕ того, как был задан вопрос
-        msgs = self.state.get("messages", [])
-        question_found = False
-        user_answered = False
+        # # Проверяем, есть ли ответ пользователя ПОСЛЕ того, как был задан вопрос
+        # msgs = self.state.get("messages", [])
+        # question_found = False
+        # user_answered = False
 
-        for m in msgs:
-            cls_name = m.__class__.__name__
-            content = str(getattr(m, "content", "")).strip()
+        # for m in msgs:
+        #     cls_name = m.__class__.__name__
+        #     content = str(getattr(m, "content", "")).strip()
 
-            # Ищем момент, когда был задан вопрос
-            if (
-                cls_name == "ToolMessage"
-                and getattr(m, "name", "") == "user_interaction_tool"
-            ):
-                try:
-                    parsed = json.loads(content)
-                    asked_question = parsed.get("question", "")
-                    if asked_question and question in asked_question:
-                        question_found = True
-                        continue
-                except json.JSONDecodeError:
-                    if question in content:
-                        question_found = True
-                        continue
+        #     # Ищем момент, когда был задан вопрос
+        #     if (
+        #         cls_name == "ToolMessage"
+        #         and getattr(m, "name", "") == "user_interaction_tool"
+        #     ):
+        #         try:
+        #             parsed = json.loads(content)
+        #             asked_question = parsed.get("question", "")
+        #             if asked_question and question in asked_question:
+        #                 question_found = True
+        #                 continue
+        #         except json.JSONDecodeError:
+        #             if question in content:
+        #                 question_found = True
+        #                 continue
 
-            # Если вопрос найден, проверяем, есть ли после него ответ пользователя
-            if question_found and (
-                getattr(m, "type", "") == "human" or cls_name == "HumanMessage"
-            ):
-                user_answered = True
-                break
+        #     # Если вопрос найден, проверяем, есть ли после него ответ пользователя
+        #     if question_found and (
+        #         getattr(m, "type", "") == "human" or cls_name == "HumanMessage"
+        #     ):
+        #         user_answered = True
+        #         break
 
-        if not user_answered:
-            # print(f">>> Вопрос '{question}' был задан, но пользователь ещё НЕ ответил")
-            return None
+        # if not user_answered:
+        #     print(f">>> Вопрос '{question}' был задан, но пользователь ещё НЕ ответил")
+        #     return None
 
-        # Только если вопрос был задан И пользователь ответил, извлекаем ответ
+        # # Только если вопрос был задан И пользователь ответил, извлекаем ответ
         try:
             history = self.collect_dialogue()
         except Exception as e:

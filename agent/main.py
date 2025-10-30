@@ -193,6 +193,8 @@ if __name__ == "__main__":
         empid="22334455",
         departamentCode="10323702",
         departamentName="Группа разработки",
+        gosbCode="ГОСБ",
+        terbankCode="Волговятский банк",
     )
 
     building = AsunEntry(

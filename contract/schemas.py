@@ -254,6 +254,18 @@ class UserContext(BaseModel):
         examples=["Группа разработки"],
         description="Название подразделения, в котором работает сотрудник",
     )
+    gosbCode: str = Field(
+        ...,
+        max_length=256,
+        examples=["ГОСБ"],
+        description="Название ГОСБа",
+    )
+    terbankCode: str = Field(
+        ...,
+        max_length=256,
+        examples=["Сибирский банк"],
+        description="Наименование территориального банка",
+    )
 
     def _compile_name(self):
         return f"{self.name.lastname} {self.name.firstname} {self.name.middlename}"
