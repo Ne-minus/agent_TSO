@@ -49,7 +49,7 @@ class RawHTTPCallback(BaseCallbackHandler):
 
     def on_llm_end(self, response, **kwargs):
         self.time = datetime.now() - self.time
-        logger.debug(f"Ответ от GigaChat получен. x-request-id - {response.llm_output['x_headers']['x-request-id']} Время выполнения запроса в GigaChat: {self.time}")
+        logger.debug(f"GigaChat ответил - x-request-id: {response.llm_output['x_headers']['x-request-id']} - time: {self.time} - prompt_tokens: {response.llm_output['token_usage']['prompt_tokens']} - total_tokens: {response.llm_output['token_usage']['total_tokens']}")
 
 
 def _thread_config(thread_id: str) -> Dict[str, Any]:
