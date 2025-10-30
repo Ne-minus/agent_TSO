@@ -27,7 +27,7 @@ def get_llm() -> GigaChat:
     model = GigaChat(
         # verbose=True,
         model=Settings.models.llm_model_type,
-        credentials=os.environ["GIGACHAIN_AUTH"],
+        # credentials=os.environ["GIGACHAIN_AUTH"],
         scope=os.environ["GIGACHAT_SCOPE"],
         verify_ssl_certs=False,
         profanity_check=False,
