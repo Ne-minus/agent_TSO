@@ -259,8 +259,8 @@ class ParamExtractor:
         llm = self.get_llm(self.state)
         try:
             resp = await (prompt | llm).ainvoke({})
-            logger.debug(f"Вопрос: {question}")
-            logger.debug(f"Проверка истории диалога (есть ли ответ на вопрос): '{question}': {resp.content if hasattr(resp, 'content') else resp}")
+            logger.debug("Проверяем историю диалога")
+            logger.debug(f"'{question}': {resp.content if hasattr(resp, 'content') else resp}")
         except Exception as e:
             import traceback
             traceback.print_exc()
