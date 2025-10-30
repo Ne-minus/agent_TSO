@@ -1,4 +1,6 @@
 import logging
+import traceback
+
 
 from langchain_core.tools import tool, InjectedToolCallId
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
@@ -18,10 +20,7 @@ from agent.utils.tree_strcture import TREE
 from contract.schemas import UserValidation
 import random
 
-
-from uvicorn.config import logger
-
-# logger = logging.getLogger("tools")
+logger = logging.getLogger("agent")
 
 KNOWLEDGE_BASE = FaissSearch(
     get_embeddings(), Settings.docs.knowledge.full_vector_store_path
@@ -39,7 +38,6 @@ async def ask_user_with_action_tool(
     """
     Инструмент для уточнения у пользователя параметров.
     """
-    # print("WE ASK FOR ACTION: ", action)
     return {"type": "ask_user", "question": text, "action": action}
 
 
@@ -109,11 +107,7 @@ async def _search_next_one(
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
     preambule: str = None,
 ):
-    # print("WE ARE IN THE FUNCTION")
-    # print(tree[curr_question])
     if tree[curr_question]["is_last"]:
-        print("Last message")
-
         # Проверяем, является ли это успешным завершением (проблема решена)
         if tree[curr_question].get("is_resolved", False):
             return Command(
@@ -166,8 +160,6 @@ async def _search_next_one(
         answer = await extractor.simple_extraction(curr_question)
 
         if answer:
-            # print(f"Найден ответ '{answer}' на вопрос '{curr_question}'")
-            # print("Next question: ", tree[curr_question][answer])
             return await _search_next_one(
                 tree[curr_question][answer], tree, state, tool_call_id
             )
@@ -176,9 +168,6 @@ async def _search_next_one(
                 to_ask = f"{preambule} {curr_question}"
             else:
                 to_ask = curr_question
-
-            # logger.debug(f"TO ASK: {to_ask}")
-
             return Command(
                 goto="ticket",
                 update={
@@ -217,30 +206,21 @@ async def scenario_search_tool(
         "Понимаю, что у вас случилась поломка. Чтобы разобраться, что именно вышло из строя, мне потребуется задать пару уточняющих вопросов.",
         "Похоже, что проблема связана с поломкой. Чтобы точно определить источник неисправности и помочь вам, я задам несколько уточняющих вопросов.",
     ]
-    # print("we're gonna search scenario")
     if entrypoint:
-        # logger.debug("WE GET PREAMBULE")
         curr_question = entrypoint
         preambule = random.choice(phrases)
     else:
         curr_question = state["curr_question"]
         preambule = None
 
-    # print(curr_question)
     try:
         result = await _search_next_one(
             curr_question, TREE, state, tool_call_id, preambule
         )
-        # print("STATE FLAG AFTER UPDATE:", state.get("ticket_not_started"))
-
-        # print(f"SEARCH RESULT: {result}")
+        return result
     except Exception as e:
-        import traceback
-
-        print(">>> ERROR", e)
-
-    return result
-
+        logger.error(e)
+        traceback.print_exc()
 
 @tool
 async def get_params_tool(
@@ -303,7 +283,6 @@ async def get_params_tool(
                 pass
 
     scenario_raw = await SCENARIO.scenario_search(ticket_name, k=10)
-    # print("CANDIDATES: ", scenario_raw)
 
     # TODO: fix database management and creation
 
@@ -342,9 +321,7 @@ async def get_params_tool(
         )
 
     except Exception as e:
-        import traceback
 
-        # print(">>> ERROR", e)
         traceback.print_exc()
 
 
@@ -361,7 +338,6 @@ async def fill_params_tool(
     params_to_fill = state.get("ticket_data")
     exctractor = ParamExtractor(state.get("llm"), state)
     data_from_history = await exctractor.run_exctraction()
-    # print("FROM HISTORY: ", data_from_history)
 
     for param, value in data_from_history.items():
         if not params_to_fill[param]["value"]:
@@ -374,12 +350,11 @@ async def fill_params_tool(
     else:
         missing = state.get("missing_params")
 
-    print(f"MISSING: {missing}")
+    logger.debug(f"Не заполненные поля заявки: {missing}")
 
     if missing == []:
         # TODO: doublecheck logic
         msg_text = f"Success: filled {len(params_to_fill)} parameters "
-        # print("FILLED PARAMS END: ", params_to_fill)
         return Command(
             update={
                 "messages": [
@@ -390,9 +365,7 @@ async def fill_params_tool(
                 "action": "CREATE_TICKET",
             },
         )
-    # print("FILLED PARAMS: ", params_to_fill)
     for param in missing:
-        # print(params_to_fill)
         if params_to_fill[param]["value"] is None:
 
             msg_text = (
