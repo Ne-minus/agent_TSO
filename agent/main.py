@@ -47,7 +47,7 @@ class RawHTTPCallback(BaseCallbackHandler):
 
     def on_llm_end(self, response, **kwargs):
         self.time = datetime.now() - self.time
-        logger.debug(f"Ответ от GigaChat получен. x-request-id - {response.llm_output["x_headers"]["x-request-id"]} Время выполнения запроса в GigaChat: {self.time}")
+        logger.debug(f"Ответ от GigaChat получен. x-request-id - {response.llm_output['x_headers']['x-request-id']} Время выполнения запроса в GigaChat: {self.time}")
 
 
 def _thread_config(thread_id: str) -> Dict[str, Any]:
@@ -66,7 +66,7 @@ def _combine_info_for_ticket(
         logging.info(param)
         logging.info(param.get("value"))
         logging.info("+" * 20)
-        params += f"{param["description"]}: {ticket_data[param]['value']}\n"
+        params += f"{param['description']}: {ticket_data[param]['value']}\n"
     final_ticket = f"{user}\n{building}\n{params}\n{scenario}"
 
     return final_ticket
