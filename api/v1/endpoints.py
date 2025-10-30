@@ -1,5 +1,12 @@
+import logging
 from uuid import UUID
 from fastapi import APIRouter, Path, Query, Body, Header
+from fastapi.exceptions import HTTPException
+from gigachat.exceptions import GigaChatException
+
+from datetime import datetime
+
+# from uvicorn.config import logger
 
 from contract.schemas import (
     UserContext,
@@ -15,6 +22,9 @@ agent = AIAgent()
 
 router = APIRouter()
 
+logger_api = logging.getLogger("api")
+logger_agent = logging.getLogger("agent")
+
 
 @router.post("/dialogs/", response_model=CreateNewDialogRs)
 async def dialogs(
@@ -23,9 +33,18 @@ async def dialogs(
         ..., description="Уникальный идемнтификатор запроса. Ключ идепотентности"
     ),
 ):
-    response = agent.create_conversation(user_context)
-    return response
-
+    try:
+        time = datetime.now()
+        logger_api.debug(f"На API получен запрос {x_request_id}.")
+        response = await agent.create_conversation(user_context)
+        logger_api.debug(f"Ответ на запрос API {x_request_id} отправлен. Время выполнения {datetime.now() - time}.")
+        return response
+    except GigaChatException as e:
+        logger_agent.error(e)
+        raise HTTPException(status_code=500, detail=str(f"GigaChat_error: {e}"))
+    except Exception as e:
+        logger_agent.error(e)
+        raise HTTPException(status_code=500, detail=str(f"Agent_error: {e}"))
 
 @router.post("/dialogs/{dialogId}", response_model=MessageToAgentRs)
 async def dialog_by_id(
@@ -37,10 +56,19 @@ async def dialog_by_id(
         ..., description="Уникальный идентификатор запроса. Ключ идемпотентности"
     ),
 ):
-    if not message.context:
-        message.context = None
-    response = agent.continue_conversation(
-        str(dialogId), message.message, context=message.context
-    )
-
-    return response
+    try:
+        time = datetime.now()
+        logger_api.debug(f"На API получен запрос {x_request_id}.")
+        if not message.context:
+            message.context = None
+        response = await agent.continue_conversation(
+            str(dialogId), message.message, context=message.context
+        )
+        logger_api.debug(f"Ответ на запрос API {x_request_id} отправлен. Время выполнения {datetime.now() - time}.")
+        return response
+    except GigaChatException as e:
+        logger_agent.error(e)
+        raise HTTPException(status_code=500, detail=str(f"GigaChat_error: {e}"))
+    except Exception as e:
+        logger_agent.error(e)
+        raise HTTPException(status_code=500, detail=str(f"Agent_error: {e}"))

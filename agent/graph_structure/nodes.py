@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 import asyncio
 
@@ -34,6 +35,9 @@ from agent.graph_structure.tools import (
     TICKET_TOOLS,
     # SCENARIO_TOOLS,
 )
+
+
+logger = logging.getLogger("nodes")
 
 
 TICKET_TOOL_NAMES: Set[str] = {t.name for t in TICKET_TOOLS if hasattr(t, "name")}
@@ -99,10 +103,10 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(if_ticket=True))
 
-    print("FLAG FOR SCENARIO:", state.get("choice_in_progress"))
+    # logger.debug(f"FLAG FOR SCENARIO: {state.get("choice_in_progress")}")
 
     if state.get("choice_in_progress"):
-        print("WE ARE CHOOSING SCENARIO")
+        # logger.debug("WE ARE CHOOSING SCENARIO")
         return Command(goto="scenario_node")
 
     # Проверяем, нужно ли обработать отказ пользователя от конкретной заявки
@@ -153,8 +157,6 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         resp = await model.bind_tools([user_interaction_tool]).ainvoke(
             [system] + messages, config
         )
-
-        print("RESP1: ", resp)
 
         return {"messages": [resp], "ticket_name_chosen": None}
         # else:
@@ -264,7 +266,7 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     ).ainvoke([system] + messages, config)
 
     if "scenario_node" in resp.content:
-        print("WE GET SCENARIO NODE")
+        # logger.debug("WE GET SCENARIO NODE")
         last_user_msg = next(
             (
                 m.content
@@ -277,7 +279,7 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             "messages": state["messages"] + [AIMessage(content="scenario_node")],
             "last_user_message": last_user_msg,
         }
-    print("TICKET RESPONSE: ", resp)
+    # logger.debug(f"TICKET RESPONSE: {resp}")
 
     return {"messages": [resp]}
 
@@ -302,7 +304,7 @@ async def scenario_node(state: AgentState, config: RunnableConfig, model):
             [scenario_search_tool, user_interaction_tool]
         ).ainvoke([system] + messages, config)
 
-    print("SCENARIO RESPONSE: ", resp)
+    # logger.debug(f"SCENARIO RESPONSE: {resp}")
     return {"messages": [resp], "choice_in_progress": True}
 
 
@@ -357,7 +359,7 @@ def should_route_after_reflect(state: AgentState):
     calls = getattr(last, "tool_calls", None) or []
 
     if "scenario_node" in last.content:
-        print("We go to scenario")
+        # logger.debug("We go to scenario")
         return "scenario_node"
 
     for c in calls:
@@ -434,7 +436,6 @@ def after_general_tool(state: AgentState):
     - иначе → reflect
     """
     # ADDED:
-    print("Here we are")
     last = state["messages"][-1]
     content = getattr(last, "content", "")
     if _was_question_asked(state):
