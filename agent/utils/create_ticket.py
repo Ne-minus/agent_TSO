@@ -105,6 +105,12 @@ class Formalize:
                 case "ФИО ВК":
                     field.value = request.requester._compile_name()
 
+                case "ГОСБ":
+                    field.value = request.requester.gosbCode
+
+                case "Территориальный банк":
+                    field.value = request.requester.terbankCode
+
                 case _:
                     pass
 

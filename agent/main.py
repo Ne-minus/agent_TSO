@@ -1,8 +1,10 @@
 import logging
+import re
 import asyncio
 from typing import Any, Dict, Optional, Tuple, AsyncGenerator, Literal
 from uuid import uuid4
 from dotenv import load_dotenv
+from markdown_it import MarkdownIt
 import json
 
 from datetime import datetime
@@ -32,8 +34,8 @@ from langchain_core.callbacks import BaseCallbackHandler
 
 logger = logging.getLogger("agent")
 
-# если в build_graph уже вшит checkpointer — просто вызываем его.
-# logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
+md = MarkdownIt()
 
 
 class RawHTTPCallback(BaseCallbackHandler):
@@ -118,6 +120,9 @@ class AIAgent:
         msg: BaseMessage = state["messages"][-1]
         # print("MESSAGE: ", type(msg))
         text, action = self._normalize_result(msg.content) if msg else ""
+        print("BEFORE FORMAT: ", text)
+        text = re.sub("\\n", "<br />", md.render(text))
+        print("AFTER FORMAT: ", text)
         # Готовим Action и ticketData из стейта
         # (если твои узлы пишут action в другое место — подстрой тут)
         state_action = state.get("action")
@@ -212,6 +217,8 @@ if __name__ == "__main__":
         empid="22334455",
         departamentCode="10323702",
         departamentName="Группа разработки",
+        gosbCode="ГОСБ",
+        terbankCode="Волговятский банк",
     )
 
     building = AsunEntry(
