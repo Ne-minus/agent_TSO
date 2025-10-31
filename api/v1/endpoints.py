@@ -82,6 +82,8 @@ async def process_task(
         )
         results[task_id] = agent_message
 
+        logger_api.info(f"Task {task_id} result: {agent_message}")
+
     except GigaChatException as e:
         logger_agent.error(e)
         raise HTTPException(status_code=500, detail=str(f"GigaChat_error: {e}"))
