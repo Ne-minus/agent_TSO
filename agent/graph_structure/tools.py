@@ -222,6 +222,7 @@ async def scenario_search_tool(
         logger.error(e)
         traceback.print_exc()
 
+
 @tool
 async def get_params_tool(
     ticket_name: Annotated[str, "Название заявки"],
@@ -384,7 +385,35 @@ async def fill_params_tool(
             )
 
 
+@tool
+async def select_action(
+    action: str,
+    state: Annotated[dict, InjectedState] = None,
+    tool_call_id: Annotated[str, InjectedToolCallId] = None,
+):
+    if action == "SELECT_ASUN_BUILDING":
+        msg_text = (
+            "Параметры пользователя проверены. Можем продолжать заполнение заявки."
+        )
+        return Command(
+            update={
+                "messages": [ToolMessage(msg_text, tool_call_id=tool_call_id)],
+                "user_validated": True,
+                "action": action,
+            }
+        )
+    else:
+        msg_text = "Осталось проверить адрес, по которому пользователь хочет сообщить о неисправности."
+        return Command(
+            update={
+                "messages": [ToolMessage(msg_text, tool_call_id=tool_call_id)],
+                "action": action,
+            }
+        )
+
+
 GENERAL_TOOLS = [user_interaction_tool, kb_search_tool]
+VALIDATION_TOOLS = [ask_user_with_action_tool, select_action]
 TICKET_TOOLS = [
     scenario_search_tool,
     get_params_tool,

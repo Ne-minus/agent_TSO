@@ -28,3 +28,9 @@ def get_formatting_prompt() -> str:
 
 def get_scenario_prompt() -> str:
     return prompts["scenario_system_prompt"] + "\n" + prompts["scenario_instructions"]
+
+
+def get_validation_prompt() -> str:
+    return (
+        prompts["validation_system_prompt"] + "\n" + prompts["validation_instructions"]
+    )

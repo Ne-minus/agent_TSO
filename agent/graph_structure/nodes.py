@@ -22,6 +22,7 @@ from agent.prompts.prompts import (
     get_react_instructions,
     get_formatting_prompt,
     get_scenario_prompt,
+    get_validation_prompt,
 )
 
 from agent.graph_structure.tools import (
@@ -252,11 +253,11 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
 
 async def scenario_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
+    system = SystemMessage(get_scenario_prompt())
     if state["ticket_not_started"]:
         messages += [
             f"\nСейчас нужно задать пользователю дополнительные вопросы. Для этого вызови scenario_search_tool(entrypoint='<НЕОБХОДИМЫЙ ВОПРОС>'). Заполнение параметра entrypoint зависит от запроса пользователя."
         ]
-        system = get_scenario_prompt()
         resp = await model.bind_tools([scenario_search_tool]).ainvoke(
             [system] + messages, config
         )
@@ -264,13 +265,21 @@ async def scenario_node(state: AgentState, config: RunnableConfig, model):
         messages += [
             f"\nЕсли ты ранее получил вопрос из scenario_search_tool, но не задал его пользователю, то нужно спросить у пользователя ответ на этот помощью user_interaction_tool. Если пользователь тебе ответил, далее вызови scenario_search_tool() без каких-либо аргументов, чтобы продолжить задавать вопросы."
         ]
-        system = get_scenario_prompt()
         resp = await model.bind_tools(
             [scenario_search_tool, user_interaction_tool]
         ).ainvoke([system] + messages, config)
 
     # logger.debug(f"SCENARIO RESPONSE: {resp}")
     return {"messages": [resp], "choice_in_progress": True}
+
+
+async def validation_node(state: AgentState, config: RunnableConfig, model):
+    messages = list(state["messages"])
+    system = SystemMessage(get_validation_prompt())
+
+    resp = await model.bind_tools([ask_user_with_action_tool, select_action]).ainvoke(
+        [system] + messages, config
+    )
 
 
 async def await_user_node(state: AgentState, *_):
