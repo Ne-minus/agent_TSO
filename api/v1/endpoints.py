@@ -111,7 +111,7 @@ async def create_task(
     return CreateTaskRs(task_id=task_id)
 
 
-@router.get("/dialogs/{dialogId}/{taskID}")
+@router.get("/dialogs/{dialogId}/{taskId}")
 async def get_task_result(task_id: str) -> TaskResponse:
     result = results.get(task_id)
 
