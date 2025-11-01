@@ -343,3 +343,22 @@ class ErrorResponse(BaseModel):
     success: Optional[bool] = Field(
         True, description="true - запрос успешно обработан сервером"
     )
+
+
+class TaskResponse(BaseModel):
+    status: Optional[str] = Field(
+        "in_progress",
+        examples=["in_progress", "done"],
+        description="Статус выполнения задачи",
+    )
+    result: Optional[MessageToAgentRs] = Field(
+        None, description="Ответ агента пользователю"
+    )
+    error: Optional[str] = Field(
+        "no such task",
+        description="Сообщение об ошибке - отсутствие задачи с текущем task_id",
+    )
+
+
+class CreateTaskRs(BaseModel):
+    task_id: str = Field(..., description="ID созданной задачи")
