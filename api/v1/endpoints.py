@@ -92,8 +92,8 @@ async def process_task(
         raise HTTPException(status_code=500, detail=str(f"Agent_error: {e}"))
 
 
-@router.post("/dialogs/{dialogId}")
-async def create_task(
+@router.post("/dialogs/{dialogId}", response_model=CreateTaskRs)
+async def send_message(
     message: MessageToAgentRq,
     background_tasks: BackgroundTasks,
     dialogId: UUID = Path(
@@ -111,8 +111,8 @@ async def create_task(
     return CreateTaskRs(task_id=task_id)
 
 
-@router.get("/dialogs/{dialogId}/{taskId}")
-async def get_task_result(task_id: str) -> TaskResponse:
+@router.get("/dialogs/{dialogId}/{taskId}", response_model=TaskResponse)
+async def get_response(task_id: str) -> TaskResponse:
     result = results.get(task_id)
 
     if result is None:
