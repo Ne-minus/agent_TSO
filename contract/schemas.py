@@ -354,10 +354,6 @@ class TaskResponse(BaseModel):
     result: Optional[MessageToAgentRs] = Field(
         None, description="Ответ агента пользователю"
     )
-    error: Optional[str] = Field(
-        "no such task",
-        description="Сообщение об ошибке - отсутствие задачи с текущем task_id",
-    )
 
 
 class CreateTaskRs(BaseModel):

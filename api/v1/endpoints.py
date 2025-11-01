@@ -27,31 +27,8 @@ router = APIRouter()
 logger_api = logging.getLogger("api")
 logger_agent = logging.getLogger("agent")
 
+# TODO временное решение
 results = {}
-
-
-@router.post("/dialogs/", response_model=CreateNewDialogRs)
-async def dialogs(
-    user_context: UserContext,
-    x_request_id: UUID = Header(
-        ..., description="Уникальный идентификатор запроса. Ключ идемпотентности"
-    ),
-):
-    # todo сделать middleware для логгирования запросов
-    try:
-        time = datetime.now()
-        logger_api.debug(f"x_request_id {x_request_id} - инициация диалога")
-        response = await agent.create_conversation(user_context)
-        logger_api.debug(f"x_request_id {x_request_id} - сформирован ответ")
-        logger_api.debug(f"x_request_id {x_request_id} - {response.model_dump()}")
-        logger_api.debug(f"x_request_id {x_request_id} - отправлен ответ на запрос - время выполнения {datetime.now() - time}")
-        return response
-    except GigaChatException as e:
-        logger_agent.error(e)
-        raise HTTPException(status_code=500, detail=str(f"GigaChat_error: {e}"))
-    except Exception as e:
-        logger_agent.error(e)
-        raise HTTPException(status_code=500, detail=str(f"Agent_error: {e}"))
 
 
 async def process_task(
@@ -64,20 +41,45 @@ async def process_task(
         ..., description="Уникальный идентификатор запроса. Ключ идемпотентности"
     ),
 ):
-    # todo сделать middleware для логгирования запросов
     try:
         time = datetime.now()
-        logger_api.debug(f"x_request_id {x_request_id} - продолжение диалога {dialogId}")
+
+        results[task_id] = {}
+
+        logger_api.debug(f"x_request_id {x_request_id} - создание задачи агента {dialogId}")
         logger_api.debug(f"x_request_id {x_request_id} - {message.model_dump()}")
         if not message.context:
             message.context = None
 
-        agent_message = await agent.continue_conversation(
+        response = await agent.continue_conversation(
             str(dialogId), message.message, context=message.context
         )
-        logger_api.debug(f"x_request_id {x_request_id} - сформирован ответ")
-        logger_api.debug(f"x_request_id {x_request_id} - {response.model_dump()}")
-        logger_api.debug(f"x_request_id {x_request_id} - отправлен ответ на запрос - время выполнения {datetime.now() - time}")
+
+        results[task_id] = response
+        logger_api.info(f"x_request_id {x_request_id} - task {task_id} result: {response.model_dump()}")
+        logger_api.debug(f"x_request_id {x_request_id} - ответ агента сформирован - время выполнения {datetime.now() - time}")
+    except GigaChatException as e:
+        logger_agent.error(e)
+        raise HTTPException(status_code=500, detail=str(f"GigaChat_error: {e}"))
+    except Exception as e:
+        logger_agent.error(e)
+        raise HTTPException(status_code=500, detail=str(f"Agent_error: {e}"))
+
+
+@router.post("/dialogs/", response_model=CreateNewDialogRs)
+async def dialogs(
+    user_context: UserContext,
+    x_request_id: UUID = Header(
+        ..., description="Уникальный идентификатор запроса. Ключ идемпотентности"
+    ),
+):
+    try:
+        time = datetime.now()
+        logger_agent.debug(f"x_request_id {x_request_id} - инициация диалога")
+        response = await agent.create_conversation(user_context)
+        logger_agent.debug(f"x_request_id {x_request_id} - сформирован ответ")
+        logger_agent.debug(f"x_request_id {x_request_id} - {response.model_dump()}")
+        logger_agent.debug(f"x_request_id {x_request_id} - отправлен ответ на запрос - время выполнения {datetime.now() - time}")
         return response
     except GigaChatException as e:
         logger_agent.error(e)
@@ -107,11 +109,17 @@ async def send_message(
 
 
 @router.get("/dialogs/{dialogId}/{taskId}", response_model=TaskResponse)
-async def get_response(task_id: str) -> TaskResponse:
-    result = results.get(task_id)
+async def get_response(
+        task_id: str,
+        x_request_id: UUID = Header(
+        ..., description="Уникальный идентификатор запроса. Ключ идемпотентности"
+    ),
+) -> TaskResponse:
+    response = results.get(task_id)
 
-    if result is None:
-        return TaskResponse(error=f"No task with id: {task_id}")
-    if result == {}:
+    if response is None:
+        logger_api.error(f"No such task: {task_id}")
+        raise HTTPException(status_code=404, detail=f"no_such_task - {task_id}")
+    if response == {}:
         return TaskResponse(status=f"in_progress")
-    return TaskResponse(status="done", result=result)
+    return TaskResponse(status="done", result=response)
