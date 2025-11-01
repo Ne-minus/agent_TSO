@@ -1,5 +1,8 @@
+import logging
+import structlog
+
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from api.v1.endpoints import router
 from logger import LOGGING_CONFIG
