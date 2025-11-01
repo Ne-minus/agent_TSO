@@ -41,11 +41,10 @@ async def process_task(
         ..., description="Уникальный идентификатор запроса. Ключ идемпотентности"
     ),
 ):
+
     try:
         time = datetime.now()
-
         results[task_id] = {}
-
         logger_api.debug(f"x_request_id {x_request_id} - создание задачи агента {dialogId}")
         logger_api.debug(f"x_request_id {x_request_id} - {message.model_dump()}")
         if not message.context:
@@ -108,7 +107,7 @@ async def send_message(
     return CreateTaskRs(task_id=task_id)
 
 
-@router.get("/dialogs/{dialogId}/{taskId}", response_model=TaskResponse)
+@router.get("/dialogs/task_status/{task_id}", response_model=TaskResponse)
 async def get_response(
         task_id: str,
         x_request_id: UUID = Header(
