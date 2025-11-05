@@ -46,7 +46,6 @@ async def process_task(
         time = datetime.now()
         results[task_id] = {}
         logger_api.debug(f"x_request_id {x_request_id} - создание задачи агента {dialogId}")
-        logger_api.debug(f"x_request_id {x_request_id} - {message.model_dump()}")
         if not message.context:
             message.context = None
 
@@ -56,7 +55,7 @@ async def process_task(
 
         results[task_id] = response
         logger_api.info(f"x_request_id {x_request_id} - task {task_id} result: {response.model_dump()}")
-        logger_api.debug(f"x_request_id {x_request_id} - ответ агента сформирован - время выполнения {datetime.now() - time}")
+        logger_api.debug(f"x_request_id {x_request_id} - время выполнения задачи {task_id} {datetime.now() - time}")
     except GigaChatException as e:
         logger_agent.error(e)
         raise HTTPException(status_code=500, detail=str(f"GigaChat_error: {e}"))
@@ -99,11 +98,11 @@ async def send_message(
         ..., description="Уникальный идентификатор запроса. Ключ идемпотентности"
     ),
 ) -> CreateTaskRs:
-
+    logger_api.debug(f"x_request_id {x_request_id} - получен запрос: {message.model_dump()}")
     task_id = str(uuid.uuid4())
-
     background_tasks.add_task(process_task, task_id, message, dialogId, x_request_id)
-
+    response = CreateTaskRs(task_id=task_id)
+    logger_api.debug(f"x_request_id {x_request_id} - направлен ответ: {response.model_dump()}")
     return CreateTaskRs(task_id=task_id)
 
 
@@ -114,11 +113,16 @@ async def get_response(
         ..., description="Уникальный идентификатор запроса. Ключ идемпотентности"
     ),
 ) -> TaskResponse:
-    response = results.get(task_id)
-
-    if response is None:
+    logger_api.debug(f"x_request_id {x_request_id} - запрос статуса задачи {task_id}")
+    task_result = results.get(task_id)
+    response = TaskResponse(status="in_progress")
+    if task_result is None:
         logger_api.error(f"No such task: {task_id}")
+        # return TaskResponse(status="no_such_task")
         raise HTTPException(status_code=404, detail=f"no_such_task - {task_id}")
-    if response == {}:
-        return TaskResponse(status=f"in_progress")
-    return TaskResponse(status="done", result=response)
+    if task_result == {}:
+        return response
+    response.status = "done"
+    response.result = task_result
+    logger_api.debug(f"x_request_id {x_request_id} - направлен ответ {response.model_dump()}")
+    return response

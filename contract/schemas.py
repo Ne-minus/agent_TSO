@@ -131,19 +131,18 @@ class TicketData(BaseModel):
     information: Optional[List[TicketEntry]] = Field(
         ...,
         min_length=1,
-        max_length=32,
+        max_length=128,
         description="Массив элементов, описывающих непосредственно заявку",
     )
     scoringElements: Optional[List[DynaElement]] = Field(
         None,
-        max_length=0,
         description="Массив структур типа DynaElement, используемымх для описания скоринга "
         "инцидента (на скольких сотрудников влияет, влияет ли на клиента, тип ВСП и прочее. Всегда пуст.",
     )
     optionElements: Optional[List[DynaElement]] = Field(
         None,
         min_length=1,
-        max_length=64,
+        max_length=128,
         description="Перечень элементов заявки, оформленных в элементы интерфейса для формирования тела "
         "созданной заявки в СберДруге",
     )
@@ -244,7 +243,7 @@ class UserContext(BaseModel):
     workPlaceLocation: Optional[AsunEntry] = Field(None)
     departamentCode: str = Field(
         ...,
-        max_length=16,
+        max_length=128,
         examples=["10323702"],
         description="Код подразделения, в котором работает сотрудник SOURCE:",
     )
@@ -295,7 +294,7 @@ class UserContextNoLocation(BaseModel):
     )
     departamentCode: str = Field(
         ...,
-        max_length=16,
+        max_length=128,
         examples=["10323702"],
         description="Код подразделения, в котором работает сотрудник SOURCE:",
     )
