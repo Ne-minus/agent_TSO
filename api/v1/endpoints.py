@@ -118,6 +118,7 @@ async def get_response(
 
     if response is None:
         logger_api.error(f"No such task: {task_id}")
+        # return TaskResponse(status="no_such_task")
         raise HTTPException(status_code=404, detail=f"no_such_task - {task_id}")
     if response == {}:
         return TaskResponse(status=f"in_progress")
