@@ -63,8 +63,8 @@ class ParamExtractor:
             - «этаж 12, дверь в кассу» → {{"location": "этаж 12, дверь в кассу"}}
             - «дверь кассы на 13 этаже» → {{"location": "этаж 13, дверь у кассы"}}
             - «входная дверь у лифта» → {{"location": "входная дверь у лифта"}}
-            - «дверь» → {{"location": None}}
-            - «Кутузовский проспект, 12» → {{"location": None}}  # это адрес, не `location`
+            - «дверь» → {{"location": null}}
+            - «Кутузовский проспект, 12» → {{"location": null}}  # это адрес, не `location`
             """
 
         human = (
@@ -212,6 +212,7 @@ class ParamExtractor:
             history = self.collect_dialogue()
         except Exception as e:
             import traceback
+
             traceback.print_exc()
 
         sys = """Тебе необходимо извлечь ответ на вопрос из истории диалога. 
@@ -260,9 +261,12 @@ class ParamExtractor:
         try:
             resp = await (prompt | llm).ainvoke({})
             logger.debug("Проверяем историю диалога")
-            logger.debug(f"'{question}': {resp.content if hasattr(resp, 'content') else resp}")
+            logger.debug(
+                f"'{question}': {resp.content if hasattr(resp, 'content') else resp}"
+            )
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             resp = None
 

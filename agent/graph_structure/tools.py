@@ -222,6 +222,7 @@ async def scenario_search_tool(
         logger.error(e)
         traceback.print_exc()
 
+
 @tool
 async def get_params_tool(
     ticket_name: Annotated[str, "Название заявки"],
