@@ -49,7 +49,9 @@ class RawHTTPCallback(BaseCallbackHandler):
 
     def on_llm_end(self, response, **kwargs):
         self.time = datetime.now() - self.time
-        logger.debug(f"GigaChat ответил - x-request-id: {response.llm_output['x_headers']['x-request-id']} - time: {self.time} - prompt_tokens: {response.llm_output['token_usage']['prompt_tokens']} - total_tokens: {response.llm_output['token_usage']['total_tokens']}")
+        logger.debug(
+            f"GigaChat ответил - x-request-id: {response.llm_output['x_headers']['x-request-id']} - time: {self.time} - prompt_tokens: {response.llm_output['token_usage']['prompt_tokens']} - total_tokens: {response.llm_output['token_usage']['total_tokens']}"
+        )
 
 
 def _thread_config(thread_id: str) -> Dict[str, Any]:
@@ -57,19 +59,23 @@ def _thread_config(thread_id: str) -> Dict[str, Any]:
     return {"configurable": {"thread_id": thread_id}, "callbacks": [RawHTTPCallback()]}
 
 
-def _combine_info_for_ticket(
-    user_info: Dict, current_building: Dict, ticket_data: Dict, scenario: str
-) -> TicketData:
-    user = f"Пользователь: {user_info['name']['lastname']} {user_info['name']['firstname']} {user_info['name']['middlename']}. Табельный номер: {user_info['empid']}\n"
-    building = f"Объект: {current_building['addr']}\n"
-    params = ""
-    for param in ticket_data:
-        logging.info("+" * 20)
-        logging.info(param)
-        logging.info(param.get("value"))
-        logging.info("+" * 20)
-        params += f"{param['description']}: {ticket_data[param]['value']}\n"
-    final_ticket = f"{user}\n{building}\n{params}\n{scenario}"
+def _combine_info_for_ticket(state: AgentState) -> TicketData:
+    user = f"<b>Заявитель:</b> {state.get("real_requester")._compile_name()}<br />"
+    building = f"<b>Адрес объекта:</b> {state.get("current_building").addr}<br />"
+    malfunction = f"<b>Неисправность:</b> {state.get("chosen_scenario").description}"
+    ticket = f"<b>Выбранная заявка:</b> {state.get("chosen_scenario").scenario}<br />"
+
+    params_str = ""
+    params = state.get("ticket_data")
+    for param in params:
+        # logging.info("+" * 20)
+        # logging.info(param)
+        # logging.info(param.get("value"))
+        # logging.info("+" * 20)
+        params_str += (
+            f"<b>{params[param]['description']}</b>: {params[param]['value']}<br />"
+        )
+    final_ticket = f"{user}<br />{building}<br />{malfunction}<br />{ticket}<br />{params_str}<br />"
 
     return final_ticket
 
@@ -131,6 +137,7 @@ class AIAgent:
             action = state_action
             form = Formalize()
             ticket_data = form.create_ticket(state)
+            text += f"<br />{_combine_info_for_ticket(state)}"
 
         if action:
             action = Action(action)
@@ -225,7 +232,7 @@ if __name__ == "__main__":
 
     async def main():
         # Инициализация диалога
-        answer = agent.create_conversation(user)
+        answer = await agent.create_conversation(user)
         dialog_id = answer.dialogId
         print(answer.message)
 
