@@ -60,10 +60,10 @@ def _thread_config(thread_id: str) -> Dict[str, Any]:
 
 
 def _combine_info_for_ticket(state: AgentState) -> TicketData:
-    user = f"<b>Заявитель:</b> {state.get("real_requester")._compile_name()}<br />"
-    building = f"<b>Адрес объекта:</b> {state.get("current_building").addr}<br />"
-    malfunction = f"<b>Неисправность:</b> {state.get("chosen_scenario").description}"
-    ticket = f"<b>Выбранная заявка:</b> {state.get("chosen_scenario").scenario}<br />"
+    user = f"<b>Заявитель:</b> {state.get('real_requester')._compile_name()}<br />"
+    building = f"<b>Адрес объекта:</b> {state.get('current_building').addr}<br />"
+    malfunction = f"<b>Неисправность:</b> {state.get('chosen_scenario').description}"
+    ticket = f"<b>Выбранная заявка:</b> {state.get('chosen_scenario').scenario}<br />"
 
     params_str = ""
     params = state.get("ticket_data")
@@ -127,6 +127,7 @@ class AIAgent:
         # print("MESSAGE: ", type(msg))
         text, action = self._normalize_result(msg.content) if msg else ""
         text = re.sub("\\n", "<br />", md.render(text))
+        text = re.sub("\\\\n", "<br />", text)
         # Готовим Action и ticketData из стейта
         # (если твои узлы пишут action в другое место — подстрой тут)
         state_action = state.get("action")
