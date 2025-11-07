@@ -1,5 +1,7 @@
 import logging
 import traceback
+import json
+import random
 
 
 from langchain_core.tools import tool, InjectedToolCallId
@@ -9,7 +11,7 @@ from langchain_core.documents import Document
 from langgraph.types import Command
 from langgraph.prebuilt import InjectedState, InjectedStore
 from langchain_core.prompts import ChatPromptTemplate
-import json
+from datetime import datetime
 
 
 from agent.rag_module import FaissSearch
@@ -18,7 +20,7 @@ from agent.model.model_init import get_embeddings
 from agent.utils.extract_params import ParamExtractor
 from agent.utils.tree_strcture import TREE
 from contract.schemas import UserValidation
-import random
+
 
 logger = logging.getLogger("agent")
 
@@ -61,6 +63,29 @@ async def user_interaction_tool(
 
     else:
         raise ValueError("Неверный mode. Используй 'answer', 'ask'.")
+
+
+@tool
+async def check_archive_tool(
+    archive_type: Annotated[str, "тип архива/местоположения камеры"],
+    data: Annotated[str, "Запрашиваемая дата в пормате ДД.ММ.ГГГГ"],
+):
+    """Инструмент для подсчета, сохранилась ли запрашиваемая запись в архиве."""
+    lengths = {
+        "Банкоматная зона": 60,
+        "ХЦК": 60,
+        "УС в сторонней организации": 4,
+        "Иное": 30,
+    }
+
+    d = datetime.strptime(data, "%d.%m.%Y").date()
+    today = datetime.today().date()
+    diff = (d - today).days
+
+    if diff <= lengths[archive_type]:
+        return True
+    else:
+        return False
 
 
 @tool
@@ -390,5 +415,6 @@ TICKET_TOOLS = [
     get_params_tool,
     fill_params_tool,
     ask_user_with_action_tool,
+    check_archive_tool,
     # validate_user_tool,
 ]

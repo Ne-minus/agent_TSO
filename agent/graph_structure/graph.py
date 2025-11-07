@@ -12,7 +12,8 @@ from agent.graph_structure.nodes import (
     should_continue_after_ticket_tool,
     after_general_tool,
     await_user_node,
-    scenario_node,
+    scenario_skud_node,
+    scenario_tsv_node,
 )
 
 
@@ -23,7 +24,8 @@ def get_graph(model):
     # Синие узлы (рефлексия)
     g.add_node("ticket", partial(ticket_reflect_node, model=model))
     g.add_node("await_user", await_user_node)
-    g.add_node("scenario_node", partial(scenario_node, model=model))
+    g.add_node("scenario_skud_node", partial(scenario_skud_node, model=model))
+    g.add_node("scenario_tsv_node", partial(scenario_tsv_node, model=model))
 
     # Жёлтые узлы (исполнение инструментов)
     g.add_node("use_general_tool", ToolNode(GENERAL_TOOLS))
@@ -37,7 +39,6 @@ def get_graph(model):
         {
             "use_ticket_tool": "use_ticket_tool",
             "use_general_tool": "use_general_tool",
-            "scenario_node": "scenario_node",
             "end": END,
         },
     )
@@ -53,7 +54,17 @@ def get_graph(model):
     )
 
     g.add_conditional_edges(
-        "scenario_node",
+        "scenario_skud_node",
+        should_route_scenario_reflect,
+        {
+            "use_ticket_tool": "use_ticket_tool",
+            "use_general_tool": "use_general_tool",
+            "end": END,
+        },
+    )
+
+    g.add_conditional_edges(
+        "scenario_tsv_node",
         should_route_scenario_reflect,
         {
             "use_ticket_tool": "use_ticket_tool",
@@ -66,7 +77,7 @@ def get_graph(model):
         "use_general_tool",
         after_general_tool,
         {
-            "await_user": "await_user",  # ADDED (раньше было END — ломало историю)
+            "await_user": "await_user",
             "ticket": "ticket",
         },
     )
