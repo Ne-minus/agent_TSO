@@ -59,19 +59,23 @@ def _thread_config(thread_id: str) -> Dict[str, Any]:
     return {"configurable": {"thread_id": thread_id}, "callbacks": [RawHTTPCallback()]}
 
 
-def _combine_info_for_ticket(
-    user_info: Dict, current_building: Dict, ticket_data: Dict, scenario: str
-) -> TicketData:
-    user = f"Пользователь: {user_info['name']['lastname']} {user_info['name']['firstname']} {user_info['name']['middlename']}. Табельный номер: {user_info['empid']}\n"
-    building = f"Объект: {current_building['addr']}\n"
-    params = ""
-    for param in ticket_data:
-        logging.info("+" * 20)
-        logging.info(param)
-        logging.info(param.get("value"))
-        logging.info("+" * 20)
-        params += f"{param['description']}: {ticket_data[param]['value']}\n"
-    final_ticket = f"{user}\n{building}\n{params}\n{scenario}"
+def _combine_info_for_ticket(state: AgentState) -> TicketData:
+    user = f"<b>Заявитель:</b> {state.get('real_requester')._compile_name()}<br />"
+    building = f"<b>Адрес объекта:</b> {state.get('current_building').addr}<br />"
+    malfunction = f"<b>Неисправность:</b> {state.get('chosen_scenario').description}"
+    ticket = f"<b>Выбранная заявка:</b> {state.get('chosen_scenario').scenario}<br />"
+
+    params_str = ""
+    params = state.get("ticket_data")
+    for param in params:
+        # logging.info("+" * 20)
+        # logging.info(param)
+        # logging.info(param.get("value"))
+        # logging.info("+" * 20)
+        params_str += (
+            f"<b>{params[param]['description']}</b>: {params[param]['value']}<br />"
+        )
+    final_ticket = f"{user}<br />{building}<br />{malfunction}<br />{ticket}<br />{params_str}<br />"
 
     return final_ticket
 
@@ -123,6 +127,7 @@ class AIAgent:
         # print("MESSAGE: ", type(msg))
         text, action = self._normalize_result(msg.content) if msg else ""
         text = re.sub("\\n", "<br />", md.render(text))
+        text = re.sub("\\\\n", "<br />", text)
         # Готовим Action и ticketData из стейта
         # (если твои узлы пишут action в другое место — подстрой тут)
         state_action = state.get("action")
@@ -133,6 +138,7 @@ class AIAgent:
             action = state_action
             form = Formalize()
             ticket_data = form.create_ticket(state)
+            text += f"<br />{_combine_info_for_ticket(state)}"
 
         if action:
             action = Action(action)
