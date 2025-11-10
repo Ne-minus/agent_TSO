@@ -32,6 +32,13 @@ SCENARIO = FaissSearch(
 )
 
 
+def _choose_other_ticket(node_name: str) -> str:
+    if "tsv" in node_name:
+        return "Иные неисправности СКУД"
+    elif "skud" in node_name:
+        return "Иные неисправности ТСВ"
+
+
 @tool
 async def ask_user_with_action_tool(
     text: Annotated[str, "Вопрос пользователю"],
@@ -96,12 +103,13 @@ async def format_output_tool(
 ):
     """Инструмент для форматирования и сохранения названия выбранной заявки"""
     print(if_comment)
+    if_comment = None if if_comment in ("None", "", "null") else if_comment
     return Command(
         goto="ticket",
         update={
             "messages": [
                 ToolMessage(
-                    f"Пользоватеть выбрал заявку {chosen_ticket}. Необходимо использовать get_params_tool()",
+                    f"Пользоватеть выбрал заявку {chosen_ticket}. Далее уточин у пользователя, подходит ли ему данная заявка",
                     tool_call_id=tool_call_id,
                     name="format_output_tool",
                 )
@@ -286,6 +294,7 @@ async def get_params_tool(
 
     # Проверяем, был ли отказ от предыдущей заявки и переход на "Иные неисправности СКУД"
     messages = state.get("messages", [])
+    node = _choose_other_ticket(state.get("node_name"))
 
     # Ищем вопрос о подходящей заявке в последних сообщениях
     for m in reversed(messages[-5:]):  # Проверяем последние 5 сообщений
@@ -293,6 +302,7 @@ async def get_params_tool(
             isinstance(m, ToolMessage)
             and getattr(m, "name", "") == "user_interaction_tool"
         ):
+            print("double checliong")
             content = str(getattr(m, "content", ""))
             try:
                 parsed = json.loads(content)
@@ -300,13 +310,13 @@ async def get_params_tool(
                 # Если нашли вопрос о подходящей заявке
                 if (
                     "Вам подходит заявка" in question
-                    and "Иные неисправности СКУД" in question
+                    and "Иные неисправности" in question
                 ):
                     # Проверяем ответ пользователя
                     # from agent.utils.extract_params import ParamExtractor
                     extractor = ParamExtractor(state.get("llm"), state)
                     user_response = await extractor.simple_extraction(
-                        "Вам подходит заявка"
+                        f"Вам подходит заявка {node}"
                     )
 
                     if user_response == "отрицательно":
@@ -318,7 +328,7 @@ async def get_params_tool(
                                         content=json.dumps(
                                             {
                                                 "type": "ask_user",
-                                                "question": "Так как данная заявка Вам не подходит, предлагаю завести обобщенную заявку <Иные неисправности СКУД>, где я подробно зафиксирую вашу неисправность. Продолжим?",
+                                                "question": f"Так как данная заявка Вам не подходит, предлагаю завести обобщенную заявку {node}, где я подробно зафиксирую вашу неисправность. Продолжим?",
                                             },
                                             ensure_ascii=False,
                                         ),

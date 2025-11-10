@@ -97,6 +97,13 @@ def _compose_prompt(if_ticket: bool = False, extra: str = "") -> str:
     return system_prompt + get_react_instructions() + (("\n" + extra) if extra else "")
 
 
+def _choose_other_ticket(node_name: str) -> str:
+    if "tsv" in node_name:
+        return "Иные неисправности СКУД"
+    elif "skud" in node_name:
+        return "Иные неисправности ТСВ"
+
+
 async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     """
     Reflection during the process of ticket filling.
@@ -116,18 +123,21 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
 
     # Проверяем, нужно ли обработать отказ пользователя от конкретной заявки
     # и переход на "Иные неисправности СКУД"
+    print("Double check ticket: ", state.get("awaiting_fallback_confirmation"))
     if state.get("awaiting_fallback_confirmation"):
+        other_ticket = _choose_other_ticket(state.get("node_name"))
+
         # from agent.utils.extract_params import ParamExtractor
         extractor = ParamExtractor(state.get("llm"), state)
-        user_response = extractor.simple_extraction(
-            "Продолжим с заявкой 'Иные неисправности СКУД'?"
+        user_response = await extractor.simple_extraction(
+            f"Продолжим с заявкой {other_ticket}?"
         )
 
         if user_response == "положительно":
             # Пользователь подтвердил, переходим к заполнению параметров
             messages.append(
                 HumanMessage(
-                    content="Пользователь подтвердил создание заявки 'Иные неисправности СКУД'. Вызови get_params_tool(ticket_name='Иные неисправности СКУД')"
+                    content=f"Пользователь подтвердил создание заявки {other_ticket}. Вызови get_params_tools c данной заявкой"
                 )
             )
             resp = await model.bind_tools([get_params_tool]).ainvoke(
@@ -157,30 +167,35 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             return {}
 
     # AFTER WE GOT TO THE END OF THE TREE
+    print(
+        f"Valuable falgs: {state.get("ticket_name_chosen")}, {state.get("if_comment")}"
+    )
     if state.get("ticket_name_chosen") and state.get("if_comment"):
+        print("why are we here??")
         messages += f"Нам не нужно заводить заявку, даем пользователю подсказку с обращением в стороннюю систему. Вызови user_interaction_tool с mode='answer', где тебе нужно будет сказать, что ты понял запрос пользователя и  по данной проблеме нужно завести заявку в другой системе: {state.get('if_comment')}."
         resp = await model.bind_tools([user_interaction_tool]).ainvoke(
             [system] + messages, config
         )
 
         return {"messages": [resp], "ticket_name_chosen": None}
-    elif state.get("ticket_name_chosen") and not state.get("if_comment"):
-        tool_id = uuid.uuid4()
-        resp = AIMessage(
-            content=f"Мы выбрали заявку {state.get('ticket_name_chosen')}. Теперь необходимо загрузить нужные параметры.",
-            tool_calls=[
-                {
-                    "name": "get_params_tool",
-                    "args": {
-                        "ticket_name": state.get("ticket_name_chosen"),
-                        "state": state,
-                        "tool_call_id": tool_id,
-                    },
-                    "id": f"call_{tool_id}",
-                    "type": "tool_call",
-                }
-            ],
-        )
+    # elif state.get("ticket_name_chosen") and not state.get("if_comment"):
+    #     tool_id = uuid.uuid4()
+    #     resp = AIMessage(
+    #         content=f"Мы выбрали заявку {state.get('ticket_name_chosen')}. Теперь необходимо загрузить нужные параметры.",
+    #         tool_calls=[
+    #             {
+    #                 "name": "get_params_tool",
+    #                 "args": {
+    #                     "ticket_name": state.get("ticket_name_chosen"),
+    #                     "state": state,
+    #                     "tool_call_id": tool_id,
+    #                 },
+    #                 "id": f"call_{tool_id}",
+    #                 "type": "tool_call",
+    #             }
+    #         ],
+    #     )
+    #     return
 
     if state.get("parameters_to_val") != [] and state.get("user_validated") == False:
 

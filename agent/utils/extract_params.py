@@ -94,6 +94,7 @@ class ParamExtractor:
         try:
             resp = await (prompt | llm).ainvoke({})
             raw = getattr(resp, "content", resp)
+            print(raw)
             data = self.safe_json_parse(raw if isinstance(raw, str) else str(raw))
             return data
         except Exception as e:
@@ -212,6 +213,7 @@ class ParamExtractor:
             history = self.collect_dialogue()
         except Exception as e:
             import traceback
+
             traceback.print_exc()
 
         sys = """Тебе необходимо извлечь ответ на вопрос из истории диалога. 
@@ -260,9 +262,12 @@ class ParamExtractor:
         try:
             resp = await (prompt | llm).ainvoke({})
             logger.debug("Проверяем историю диалога")
-            logger.debug(f"'{question}': {resp.content if hasattr(resp, 'content') else resp}")
+            logger.debug(
+                f"'{question}': {resp.content if hasattr(resp, 'content') else resp}"
+            )
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             resp = None
 
