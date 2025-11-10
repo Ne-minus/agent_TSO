@@ -78,6 +78,8 @@ def get_graph(model):
         after_general_tool,
         {
             "await_user": "await_user",
+            "scenario_tsv_node": "scenario_tsv_node",
+            "scenario_skud_node": "scenario_skud_node",
             "ticket": "ticket",
         },
     )

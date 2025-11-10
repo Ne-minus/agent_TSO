@@ -68,7 +68,7 @@ async def user_interaction_tool(
 @tool
 async def check_archive_tool(
     archive_type: Annotated[str, "тип архива/местоположения камеры"],
-    data: Annotated[str, "Запрашиваемая дата в пормате ДД.ММ.ГГГГ"],
+    data: Annotated[str, "Запрашиваемая дата в формате ДД.ММ.ГГГГ"],
 ):
     """Инструмент для подсчета, сохранилась ли запрашиваемая запись в архиве."""
     lengths = {
@@ -86,6 +86,31 @@ async def check_archive_tool(
         return True
     else:
         return False
+
+
+@tool
+async def format_output_tool(
+    chosen_ticket: Annotated[str, "название выбранной заявки"],
+    if_comment: Annotated[str, "Комментарий к зявке, если есть"],
+    tool_call_id: Annotated[str, InjectedToolCallId] = None,
+):
+    """Инструмент для форматирования и сохранения названия выбранной заявки"""
+    print(if_comment)
+    return Command(
+        goto="ticket",
+        update={
+            "messages": [
+                ToolMessage(
+                    f"Пользоватеть выбрал заявку {chosen_ticket}. Необходимо использовать get_params_tool()",
+                    tool_call_id=tool_call_id,
+                    name="format_output_tool",
+                )
+            ],
+            "if_comment": if_comment,
+            "ticket_name_chosen": chosen_ticket,
+            "choice_in_progress": False,
+        },
+    )
 
 
 @tool
@@ -247,6 +272,7 @@ async def scenario_search_tool(
         logger.error(e)
         traceback.print_exc()
 
+
 @tool
 async def get_params_tool(
     ticket_name: Annotated[str, "Название заявки"],
@@ -256,6 +282,7 @@ async def get_params_tool(
     """
     Находит необходимый сценарий, а затем извлекает список параметров, неоьходимых для заполнения заявки по данному сценарию.
     """
+    print("we are using this too;")
 
     # Проверяем, был ли отказ от предыдущей заявки и переход на "Иные неисправности СКУД"
     messages = state.get("messages", [])
@@ -416,5 +443,6 @@ TICKET_TOOLS = [
     fill_params_tool,
     ask_user_with_action_tool,
     check_archive_tool,
+    format_output_tool,
     # validate_user_tool,
 ]

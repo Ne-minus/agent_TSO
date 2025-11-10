@@ -34,6 +34,7 @@ from agent.graph_structure.tools import (
     scenario_search_tool,
     get_params_tool,
     fill_params_tool,
+    format_output_tool,
     GENERAL_TOOLS,
     TICKET_TOOLS,
     # SCENARIO_TOOLS,
@@ -102,15 +103,16 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     Both general and ticket tools are allowed.
     After using general tools, we go back here till filling process is active.
     """
+    print("AFTER INTERRUPT")
 
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(if_ticket=True))
 
     # logger.debug(f"FLAG FOR SCENARIO: {state.get("choice_in_progress")}")
-
+    print(state.get("choice_in_progress"))
     if state.get("choice_in_progress"):
         # logger.debug("WE ARE CHOOSING SCENARIO")
-        return Command(goto="scenario_node")
+        return Command(goto=state.get("node_name"))
 
     # Проверяем, нужно ли обработать отказ пользователя от конкретной заявки
     # и переход на "Иные неисправности СКУД"
@@ -162,6 +164,24 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         )
 
         return {"messages": [resp], "ticket_name_chosen": None}
+    elif state.get("ticket_name_chosen") and not state.get("if_comment"):
+        tool_id = uuid.uuid4()
+        resp = AIMessage(
+            content=f"Мы выбрали заявку {state.get('ticket_name_chosen')}. Теперь необходимо загрузить нужные параметры.",
+            tool_calls=[
+                {
+                    "name": "get_params_tool",
+                    "args": {
+                        "ticket_name": state.get("ticket_name_chosen"),
+                        "state": state,
+                        "tool_call_id": tool_id,
+                    },
+                    "id": f"call_{tool_id}",
+                    "type": "tool_call",
+                }
+            ],
+        )
+
     if state.get("parameters_to_val") != [] and state.get("user_validated") == False:
 
         mixture = {
@@ -232,6 +252,7 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         ]
         + GENERAL_TOOLS
     ).ainvoke([system] + messages, config)
+    print(messages)
     print(resp)
 
     if "route" in resp.content:
@@ -245,7 +266,14 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             None,
         )
         node_name = re.search(r"<route>(.+?)<\/route>", resp.content).group(1)
-        return Command(goto=node_name, update={"last_user_message": last_user_msg})
+        return Command(
+            goto=node_name,
+            update={
+                "last_user_message": last_user_msg,
+                "choice_in_progress": True,
+                "node_name": node_name,
+            },
+        )
     # logger.debug(f"TICKET RESPONSE: {resp}")
 
     return {"messages": [resp]}
@@ -279,20 +307,13 @@ async def scenario_tsv_node(state: AgentState, config: RunnableConfig, model):
     system = SystemMessage(get_tsv_prompt())
 
     llm = model.bind_tools(
-        [user_interaction_tool, check_archive_tool]
-    ).with_structured_output(Decision)
+        [user_interaction_tool, check_archive_tool, format_output_tool]
+    )
 
     response = await llm.ainvoke([system] + messages, config)
     print(response)
 
-    if response.ticket_chosen:
-        return Command(
-            update={
-                "ticket_chosen": response.ticket_chosen,
-                "if_comment": response.if_comment,
-            },
-            goto="ticket",
-        )
+    return {"messages": [response], "choice_in_progress": True}
 
 
 async def await_user_node(state: AgentState, *_):
@@ -300,9 +321,13 @@ async def await_user_node(state: AgentState, *_):
     Останавливает граф, спрашивает пользователя и ждёт resume с {"answer": "..."}.
     """
     question = _extract_question(state) or "Пожалуйста, ответьте на вопрос."
+    print(question)
     payload = interrupt({"question": question})
+    print(payload)
     answer = payload.get("answer")
+    print(answer)
     if not answer:
+        print("here")
         return {}
 
     # Превращаем ответ в HumanMessage и продолжаем граф.
@@ -390,10 +415,12 @@ def after_general_tool(state: AgentState):
     last = state["messages"][-1]
     content = getattr(last, "content", "")
     if _was_question_asked(state):
+        print("question was asked")
         return "await_user"
 
-    # if "scenario_node" in content:
-    #     "We go to scenario"
-    #     return "scenario_node"
-    # else:
+    if "scenario_tsv_node" in content:
+        return "scenario_tsv_node"
+    elif "scenario_skud_node" in content:
+        return "scenario_skud_node"
+
     return "ticket"

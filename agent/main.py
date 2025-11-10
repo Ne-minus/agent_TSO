@@ -49,7 +49,9 @@ class RawHTTPCallback(BaseCallbackHandler):
 
     def on_llm_end(self, response, **kwargs):
         self.time = datetime.now() - self.time
-        logger.debug(f"GigaChat ответил - x-request-id: {response.llm_output['x_headers']['x-request-id']} - time: {self.time} - prompt_tokens: {response.llm_output['token_usage']['prompt_tokens']} - total_tokens: {response.llm_output['token_usage']['total_tokens']}")
+        logger.debug(
+            f"GigaChat ответил - x-request-id: {response.llm_output['x_headers']['x-request-id']} - time: {self.time} - prompt_tokens: {response.llm_output['token_usage']['prompt_tokens']} - total_tokens: {response.llm_output['token_usage']['total_tokens']}"
+        )
 
 
 def _thread_config(thread_id: str) -> Dict[str, Any]:
@@ -167,6 +169,7 @@ class AIAgent:
             "awaiting_fallback_confirmation": False,
             "messages": [AIMessage(content="Здравствуйте! Чем могу помочь?")],
             "last_user_message": "",
+            "node_name": "",
         }
 
         self._graph.update_state(config, init_state)
@@ -225,7 +228,7 @@ if __name__ == "__main__":
 
     async def main():
         # Инициализация диалога
-        answer = agent.create_conversation(user)
+        answer = await agent.create_conversation(user)
         dialog_id = answer.dialogId
         print(answer.message)
 
