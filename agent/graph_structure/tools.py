@@ -87,7 +87,8 @@ async def check_archive_tool(
 
     d = datetime.strptime(data, "%d.%m.%Y").date()
     today = datetime.today().date()
-    diff = (d - today).days
+    diff = (today - d).days
+    print("Number of Days: ", diff)
 
     if diff <= lengths[archive_type]:
         return True
@@ -102,14 +103,15 @@ async def format_output_tool(
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ):
     """Инструмент для форматирования и сохранения названия выбранной заявки"""
-    print(if_comment)
     if_comment = None if if_comment in ("None", "", "null") else if_comment
+    description, _ = await _get_candidates(chosen_ticket)
+
     return Command(
         goto="ticket",
         update={
             "messages": [
                 ToolMessage(
-                    f"Пользоватеть выбрал заявку {chosen_ticket}. Далее уточин у пользователя, подходит ли ему данная заявка",
+                    f"Пользоватеть выбрал заявку {chosen_ticket} с описанием {description}. Далее уточни у пользователя, подходит ли ему данная заявка",
                     tool_call_id=tool_call_id,
                     name="format_output_tool",
                 )

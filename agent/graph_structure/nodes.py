@@ -110,20 +110,17 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     Both general and ticket tools are allowed.
     After using general tools, we go back here till filling process is active.
     """
-    print("AFTER INTERRUPT")
 
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(if_ticket=True))
 
     # logger.debug(f"FLAG FOR SCENARIO: {state.get("choice_in_progress")}")
-    print(state.get("choice_in_progress"))
     if state.get("choice_in_progress"):
         # logger.debug("WE ARE CHOOSING SCENARIO")
         return Command(goto=state.get("node_name"))
 
     # Проверяем, нужно ли обработать отказ пользователя от конкретной заявки
     # и переход на "Иные неисправности СКУД"
-    print("Double check ticket: ", state.get("awaiting_fallback_confirmation"))
     if state.get("awaiting_fallback_confirmation"):
         other_ticket = _choose_other_ticket(state.get("node_name"))
 
@@ -167,35 +164,13 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             return {}
 
     # AFTER WE GOT TO THE END OF THE TREE
-    print(
-        f"Valuable falgs: {state.get("ticket_name_chosen")}, {state.get("if_comment")}"
-    )
     if state.get("ticket_name_chosen") and state.get("if_comment"):
-        print("why are we here??")
         messages += f"Нам не нужно заводить заявку, даем пользователю подсказку с обращением в стороннюю систему. Вызови user_interaction_tool с mode='answer', где тебе нужно будет сказать, что ты понял запрос пользователя и  по данной проблеме нужно завести заявку в другой системе: {state.get('if_comment')}."
         resp = await model.bind_tools([user_interaction_tool]).ainvoke(
             [system] + messages, config
         )
 
         return {"messages": [resp], "ticket_name_chosen": None}
-    # elif state.get("ticket_name_chosen") and not state.get("if_comment"):
-    #     tool_id = uuid.uuid4()
-    #     resp = AIMessage(
-    #         content=f"Мы выбрали заявку {state.get('ticket_name_chosen')}. Теперь необходимо загрузить нужные параметры.",
-    #         tool_calls=[
-    #             {
-    #                 "name": "get_params_tool",
-    #                 "args": {
-    #                     "ticket_name": state.get("ticket_name_chosen"),
-    #                     "state": state,
-    #                     "tool_call_id": tool_id,
-    #                 },
-    #                 "id": f"call_{tool_id}",
-    #                 "type": "tool_call",
-    #             }
-    #         ],
-    #     )
-    #     return
 
     if state.get("parameters_to_val") != [] and state.get("user_validated") == False:
 
@@ -267,11 +242,8 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         ]
         + GENERAL_TOOLS
     ).ainvoke([system] + messages, config)
-    print(messages)
-    print(resp)
 
     if "route" in resp.content:
-        print("WE GET SCENARIO NODE")
         last_user_msg = next(
             (
                 m.content
@@ -326,7 +298,6 @@ async def scenario_tsv_node(state: AgentState, config: RunnableConfig, model):
     )
 
     response = await llm.ainvoke([system] + messages, config)
-    print(response)
 
     return {"messages": [response], "choice_in_progress": True}
 
@@ -336,13 +307,9 @@ async def await_user_node(state: AgentState, *_):
     Останавливает граф, спрашивает пользователя и ждёт resume с {"answer": "..."}.
     """
     question = _extract_question(state) or "Пожалуйста, ответьте на вопрос."
-    print(question)
     payload = interrupt({"question": question})
-    print(payload)
     answer = payload.get("answer")
-    print(answer)
     if not answer:
-        print("here")
         return {}
 
     # Превращаем ответ в HumanMessage и продолжаем граф.
@@ -430,7 +397,6 @@ def after_general_tool(state: AgentState):
     last = state["messages"][-1]
     content = getattr(last, "content", "")
     if _was_question_asked(state):
-        print("question was asked")
         return "await_user"
 
     if "scenario_tsv_node" in content:
