@@ -94,6 +94,7 @@ class ParamExtractor:
         try:
             resp = await (prompt | llm).ainvoke({})
             raw = getattr(resp, "content", resp)
+            print(raw)
             data = self.safe_json_parse(raw if isinstance(raw, str) else str(raw))
             return data
         except Exception as e:

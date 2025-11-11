@@ -6,8 +6,12 @@ import yaml
 # TODO come up with something better than this
 # prompts_path = Path("./resources") / "prompts.yaml"
 prompts_path = "agent/prompts/prompts_main.yaml"
+tsv_path = "agent/prompts/prompts_tsv.yaml"
 with open(prompts_path, "r", encoding="utf-8") as f:
     prompts = yaml.safe_load(f)
+
+with open(tsv_path, "r", encoding="utf-8") as f:
+    tsv_prompts = yaml.safe_load(f)
 
 
 def create_system_prompt() -> str:
@@ -28,3 +32,7 @@ def get_formatting_prompt() -> str:
 
 def get_scenario_prompt() -> str:
     return prompts["scenario_system_prompt"] + "\n" + prompts["scenario_instructions"]
+
+
+def get_tsv_prompt() -> str:
+    return tsv_prompts["tsv_system_prompt"] + "\n" + tsv_prompts["tsv_instructions"]

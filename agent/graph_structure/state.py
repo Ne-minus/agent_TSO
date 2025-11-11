@@ -33,3 +33,4 @@ class AgentState(TypedDict):
     choice_in_progress: bool = False
     awaiting_fallback_confirmation: bool = False
     last_user_message: str
+    node_name: str

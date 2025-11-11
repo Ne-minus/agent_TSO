@@ -161,6 +161,8 @@ def parse_excel(path: str) -> List[ExitScenarioPoint]:
     # print(df.columns)
     for ticket, group in df.groupby("ticket_name"):
         # обязательные поля
+        print(group)
+        print(group[group["field_name"] == "branch"])
         branch = group[group["field_name"] == "branch"]["field_value"].iloc[0]
         scenario = group[group["field_name"] == "scenario"]["field_value"].iloc[0]
         description = group[group["field_name"] == "ticket_description"][

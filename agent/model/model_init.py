@@ -32,6 +32,7 @@ def get_llm() -> GigaChat:
         scope=os.environ["GIGACHAT_SCOPE"],
         verify_ssl_certs=False,
         profanity_check=False,
+        timeout=60,
     )
 
     return model

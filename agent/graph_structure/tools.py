@@ -1,5 +1,7 @@
 import logging
 import traceback
+import json
+import random
 
 
 from langchain_core.tools import tool, InjectedToolCallId
@@ -9,7 +11,7 @@ from langchain_core.documents import Document
 from langgraph.types import Command
 from langgraph.prebuilt import InjectedState, InjectedStore
 from langchain_core.prompts import ChatPromptTemplate
-import json
+from datetime import datetime
 
 
 from agent.rag_module import FaissSearch
@@ -18,7 +20,7 @@ from agent.model.model_init import get_embeddings
 from agent.utils.extract_params import ParamExtractor
 from agent.utils.tree_strcture import TREE
 from contract.schemas import UserValidation
-import random
+
 
 logger = logging.getLogger("agent")
 
@@ -28,6 +30,13 @@ KNOWLEDGE_BASE = FaissSearch(
 SCENARIO = FaissSearch(
     get_embeddings(), Settings.docs.tso_scenario.full_vector_store_path
 )
+
+
+def _choose_other_ticket(node_name: str) -> str:
+    if "tsv" in node_name:
+        return "Иные неисправности СКУД"
+    elif "skud" in node_name:
+        return "Иные неисправности ТСВ"
 
 
 @tool
@@ -61,6 +70,57 @@ async def user_interaction_tool(
 
     else:
         raise ValueError("Неверный mode. Используй 'answer', 'ask'.")
+
+
+@tool
+async def check_archive_tool(
+    archive_type: Annotated[str, "тип архива/местоположения камеры"],
+    data: Annotated[str, "Запрашиваемая дата в формате ДД.ММ.ГГГГ"],
+):
+    """Инструмент для подсчета, сохранилась ли запрашиваемая запись в архиве."""
+    lengths = {
+        "Банкоматная зона": 60,
+        "ХЦК": 60,
+        "УС в сторонней организации": 4,
+        "Иное": 30,
+    }
+
+    d = datetime.strptime(data, "%d.%m.%Y").date()
+    today = datetime.today().date()
+    diff = (today - d).days
+    print("Number of Days: ", diff)
+
+    if diff <= lengths[archive_type]:
+        return True
+    else:
+        return False
+
+
+@tool
+async def format_output_tool(
+    chosen_ticket: Annotated[str, "название выбранной заявки"],
+    if_comment: Annotated[str, "Комментарий к зявке, если есть"],
+    tool_call_id: Annotated[str, InjectedToolCallId] = None,
+):
+    """Инструмент для форматирования и сохранения названия выбранной заявки"""
+    if_comment = None if if_comment in ("None", "", "null") else if_comment
+    description, _ = await _get_candidates(chosen_ticket)
+
+    return Command(
+        goto="ticket",
+        update={
+            "messages": [
+                ToolMessage(
+                    f"Пользоватеть выбрал заявку {chosen_ticket} с описанием {description}. Далее уточни у пользователя, подходит ли ему данная заявка",
+                    tool_call_id=tool_call_id,
+                    name="format_output_tool",
+                )
+            ],
+            "if_comment": if_comment,
+            "ticket_name_chosen": chosen_ticket,
+            "choice_in_progress": False,
+        },
+    )
 
 
 @tool
@@ -232,9 +292,11 @@ async def get_params_tool(
     """
     Находит необходимый сценарий, а затем извлекает список параметров, неоьходимых для заполнения заявки по данному сценарию.
     """
+    print("we are using this too;")
 
     # Проверяем, был ли отказ от предыдущей заявки и переход на "Иные неисправности СКУД"
     messages = state.get("messages", [])
+    node = _choose_other_ticket(state.get("node_name"))
 
     # Ищем вопрос о подходящей заявке в последних сообщениях
     for m in reversed(messages[-5:]):  # Проверяем последние 5 сообщений
@@ -242,6 +304,7 @@ async def get_params_tool(
             isinstance(m, ToolMessage)
             and getattr(m, "name", "") == "user_interaction_tool"
         ):
+            print("double checliong")
             content = str(getattr(m, "content", ""))
             try:
                 parsed = json.loads(content)
@@ -249,13 +312,13 @@ async def get_params_tool(
                 # Если нашли вопрос о подходящей заявке
                 if (
                     "Вам подходит заявка" in question
-                    and "Иные неисправности СКУД" in question
+                    and "Иные неисправности" in question
                 ):
                     # Проверяем ответ пользователя
                     # from agent.utils.extract_params import ParamExtractor
                     extractor = ParamExtractor(state.get("llm"), state)
                     user_response = await extractor.simple_extraction(
-                        "Вам подходит заявка"
+                        f"Вам подходит заявка {node}"
                     )
 
                     if user_response == "отрицательно":
@@ -267,7 +330,7 @@ async def get_params_tool(
                                         content=json.dumps(
                                             {
                                                 "type": "ask_user",
-                                                "question": "Так как данная заявка Вам не подходит, предлагаю завести обобщенную заявку <Иные неисправности СКУД>, где я подробно зафиксирую вашу неисправность. Продолжим?",
+                                                "question": f"Так как данная заявка Вам не подходит, предлагаю завести обобщенную заявку {node}, где я подробно зафиксирую вашу неисправность. Продолжим?",
                                             },
                                             ensure_ascii=False,
                                         ),
@@ -391,5 +454,7 @@ TICKET_TOOLS = [
     get_params_tool,
     fill_params_tool,
     ask_user_with_action_tool,
+    check_archive_tool,
+    format_output_tool,
     # validate_user_tool,
 ]
