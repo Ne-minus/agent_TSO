@@ -214,5 +214,5 @@ scenario_instructions: |
 
   Action:
   ```python
-  scenario_search_tool(scenario_search_tool="Считыватель непрерывно издает звуковой сигнал?")
+  scenario_search_tool(entrypoint="Считыватель непрерывно издает звуковой сигнал?")
   ```
