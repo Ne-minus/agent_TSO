@@ -46,7 +46,6 @@ logger = logging.getLogger("nodes")
 
 TICKET_TOOL_NAMES: Set[str] = {t.name for t in TICKET_TOOLS if hasattr(t, "name")}
 GENERAL_TOOL_NAMES: Set[str] = {t.name for t in GENERAL_TOOLS if hasattr(t, "name")}
-# SCENARIO_TOOL_NAMES: Set[str] = {t.name for t in SCENARIO_TOOLS if hasattr(t, "name")}
 
 
 TOOLS_BY_NAME = {t.name: t for t in (GENERAL_TOOLS + TICKET_TOOLS)}
@@ -114,14 +113,11 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(if_ticket=True))
 
-    # logger.debug(f"FLAG FOR SCENARIO: {state.get("choice_in_progress")}")
     if state.get("choice_in_progress"):
-        # logger.debug("WE ARE CHOOSING SCENARIO")
         return Command(goto=state.get("node_name"))
 
-    # Проверяем, нужно ли обработать отказ пользователя от конкретной заявки
-    # и переход на "Иные неисправности СКУД"
     if state.get("awaiting_fallback_confirmation"):
+        print("CALLBACK")
         other_ticket = _choose_other_ticket(state.get("node_name"))
 
         # from agent.utils.extract_params import ParamExtractor

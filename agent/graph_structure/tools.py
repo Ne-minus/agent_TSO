@@ -88,7 +88,6 @@ async def check_archive_tool(
     d = datetime.strptime(data, "%d.%m.%Y").date()
     today = datetime.today().date()
     diff = (today - d).days
-    print("Number of Days: ", diff)
 
     if diff <= lengths[archive_type]:
         return True
@@ -292,7 +291,6 @@ async def get_params_tool(
     """
     Находит необходимый сценарий, а затем извлекает список параметров, неоьходимых для заполнения заявки по данному сценарию.
     """
-    print("we are using this too;")
 
     # Проверяем, был ли отказ от предыдущей заявки и переход на "Иные неисправности СКУД"
     messages = state.get("messages", [])
@@ -304,7 +302,6 @@ async def get_params_tool(
             isinstance(m, ToolMessage)
             and getattr(m, "name", "") == "user_interaction_tool"
         ):
-            print("double checliong")
             content = str(getattr(m, "content", ""))
             try:
                 parsed = json.loads(content)
@@ -316,10 +313,12 @@ async def get_params_tool(
                 ):
                     # Проверяем ответ пользователя
                     # from agent.utils.extract_params import ParamExtractor
+                    print("WE ARE HERE")
                     extractor = ParamExtractor(state.get("llm"), state)
                     user_response = await extractor.simple_extraction(
-                        f"Вам подходит заявка {node}"
+                        f"Вам подходит заявка"
                     )
+                    print(user_response)
 
                     if user_response == "отрицательно":
                         # Пользователь отказался, нужно сначала оповестить о переходе на "Иные неисправности"
