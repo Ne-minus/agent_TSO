@@ -25,7 +25,7 @@ from agent.prompts.prompts import (
     get_formatting_prompt,
     get_scenario_prompt,
     get_tsv_prompt,
-    get_ts_prompt, 
+    get_ts_prompt,
 )
 
 from agent.graph_structure.tools import (
@@ -251,6 +251,7 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             None,
         )
         node_name = re.search(r"<route>(.+?)<\/route>", resp.content).group(1)
+        print(node_name)
         return Command(
             goto=node_name,
             update={
@@ -285,6 +286,7 @@ async def scenario_skud_node(state: AgentState, config: RunnableConfig, model):
 
     # logger.debug(f"SCENARIO RESPONSE: {resp}")
     return {"messages": [resp], "choice_in_progress": True}
+
 
 async def scenario_ts_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
