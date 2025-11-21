@@ -18,7 +18,7 @@ from agent.rag_module import FaissSearch
 from agent.config import Settings
 from agent.model.model_init import get_embeddings
 from agent.utils.extract_params import ParamExtractor
-from agent.utils.tree_strcture import TREE
+from agent.utils.tree_strcture import TREE, TS_TREE
 from contract.schemas import UserValidation
 
 
@@ -88,7 +88,6 @@ async def check_archive_tool(
     d = datetime.strptime(data, "%d.%m.%Y").date()
     today = datetime.today().date()
     diff = (today - d).days
-    print("Number of Days: ", diff)
 
     if diff <= lengths[archive_type]:
         return True
@@ -166,6 +165,7 @@ async def _search_next_one(
     state: Annotated[dict, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
     preambule: str = None,
+    scenario_type: str = "scenario_search_tool"  # Добавляем параметр для определения типа сценария
 ):
     if tree[curr_question]["is_last"]:
         # Проверяем, является ли это успешным завершением (проблема решена)
@@ -221,7 +221,12 @@ async def _search_next_one(
 
         if answer:
             return await _search_next_one(
-                tree[curr_question][answer], tree, state, tool_call_id
+                tree[curr_question][answer],
+                tree,
+                state,
+                tool_call_id,
+                preambule=None,
+                scenario_type=scenario_type
             )
         else:
             if preambule:
@@ -239,7 +244,7 @@ async def _search_next_one(
                             # ),
                             f"Нужно уточнить у пользователя ответ на следующий вопрос, не изменяя формулировку: {to_ask}",
                             tool_call_id=tool_call_id,
-                            name="scenario_search_tool",
+                            name=scenario_type,
                         )
                     ],
                     "choice_in_progress": True,
@@ -282,6 +287,44 @@ async def scenario_search_tool(
         logger.error(e)
         traceback.print_exc()
 
+@tool
+async def scenario_ts_search_tool(
+    state: Annotated[dict, InjectedState] = None,
+    tool_call_id: Annotated[str, InjectedToolCallId] = None,
+    entrypoint: Optional[str] = None,
+):
+    """
+    Инструмент для поиска сценария, исходя из ответов пользователя на дополнительные вопросы.
+    """
+
+    phrases = [
+        "Понимаю, что проблема связана с неисправностью. Чтобы разобраться точнее и понять, как это исправить, мне нужно задать вам несколько уточняющих вопросов.",
+        "Я вижу, что речь идёт о поломке. Чтобы определить причину и подобрать решение, позвольте задать несколько вопросов.",
+        "Похоже, возникла неисправность. Чтобы понять, в чём именно дело, мне нужно уточнить некоторые детали.",
+        "Понимаю, что у вас случилась поломка. Чтобы разобраться, что именно вышло из строя, мне потребуется задать пару уточняющих вопросов.",
+        "Похоже, что проблема связана с поломкой. Чтобы точно определить источник неисправности и помочь вам, я задам несколько уточняющих вопросов.",
+    ]
+    if entrypoint:
+        curr_question = entrypoint
+        preambule = random.choice(phrases)
+    else:
+        curr_question = state["curr_question"]
+        preambule = None
+
+    try:
+        result = await _search_next_one(
+            curr_question,
+            TS_TREE,
+            state,
+            tool_call_id,
+            preambule,
+            scenario_type="scenario_ts_search_tool"
+        )
+        return result
+    except Exception as e:
+        logger.error(e)
+        traceback.print_exc()
+
 
 @tool
 async def get_params_tool(
@@ -292,7 +335,6 @@ async def get_params_tool(
     """
     Находит необходимый сценарий, а затем извлекает список параметров, неоьходимых для заполнения заявки по данному сценарию.
     """
-    print("we are using this too;")
 
     # Проверяем, был ли отказ от предыдущей заявки и переход на "Иные неисправности СКУД"
     messages = state.get("messages", [])
@@ -304,7 +346,6 @@ async def get_params_tool(
             isinstance(m, ToolMessage)
             and getattr(m, "name", "") == "user_interaction_tool"
         ):
-            print("double checliong")
             content = str(getattr(m, "content", ""))
             try:
                 parsed = json.loads(content)
@@ -316,10 +357,12 @@ async def get_params_tool(
                 ):
                     # Проверяем ответ пользователя
                     # from agent.utils.extract_params import ParamExtractor
+                    print("WE ARE HERE")
                     extractor = ParamExtractor(state.get("llm"), state)
                     user_response = await extractor.simple_extraction(
-                        f"Вам подходит заявка {node}"
+                        f"Вам подходит заявка"
                     )
+                    print(user_response)
 
                     if user_response == "отрицательно":
                         # Пользователь отказался, нужно сначала оповестить о переходе на "Иные неисправности"
@@ -451,6 +494,7 @@ async def fill_params_tool(
 GENERAL_TOOLS = [user_interaction_tool, kb_search_tool]
 TICKET_TOOLS = [
     scenario_search_tool,
+    scenario_ts_search_tool,
     get_params_tool,
     fill_params_tool,
     ask_user_with_action_tool,

@@ -25,6 +25,7 @@ from agent.prompts.prompts import (
     get_formatting_prompt,
     get_scenario_prompt,
     get_tsv_prompt,
+    get_ts_prompt,
 )
 
 from agent.graph_structure.tools import (
@@ -32,6 +33,7 @@ from agent.graph_structure.tools import (
     ask_user_with_action_tool,
     check_archive_tool,
     scenario_search_tool,
+    scenario_ts_search_tool,
     get_params_tool,
     fill_params_tool,
     format_output_tool,
@@ -46,7 +48,6 @@ logger = logging.getLogger("nodes")
 
 TICKET_TOOL_NAMES: Set[str] = {t.name for t in TICKET_TOOLS if hasattr(t, "name")}
 GENERAL_TOOL_NAMES: Set[str] = {t.name for t in GENERAL_TOOLS if hasattr(t, "name")}
-# SCENARIO_TOOL_NAMES: Set[str] = {t.name for t in SCENARIO_TOOLS if hasattr(t, "name")}
 
 
 TOOLS_BY_NAME = {t.name: t for t in (GENERAL_TOOLS + TICKET_TOOLS)}
@@ -114,14 +115,11 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
     system = SystemMessage(_compose_prompt(if_ticket=True))
 
-    # logger.debug(f"FLAG FOR SCENARIO: {state.get("choice_in_progress")}")
     if state.get("choice_in_progress"):
-        # logger.debug("WE ARE CHOOSING SCENARIO")
         return Command(goto=state.get("node_name"))
 
-    # Проверяем, нужно ли обработать отказ пользователя от конкретной заявки
-    # и переход на "Иные неисправности СКУД"
     if state.get("awaiting_fallback_confirmation"):
+        print("CALLBACK")
         other_ticket = _choose_other_ticket(state.get("node_name"))
 
         # from agent.utils.extract_params import ParamExtractor
@@ -253,6 +251,7 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             None,
         )
         node_name = re.search(r"<route>(.+?)<\/route>", resp.content).group(1)
+        print(node_name)
         return Command(
             goto=node_name,
             update={
@@ -283,6 +282,29 @@ async def scenario_skud_node(state: AgentState, config: RunnableConfig, model):
         system = get_scenario_prompt()
         resp = await model.bind_tools(
             [scenario_search_tool, user_interaction_tool]
+        ).ainvoke([system] + messages, config)
+
+    # logger.debug(f"SCENARIO RESPONSE: {resp}")
+    return {"messages": [resp], "choice_in_progress": True}
+
+
+async def scenario_ts_node(state: AgentState, config: RunnableConfig, model):
+    messages = list(state["messages"])
+    if state["ticket_not_started"]:
+        messages += [
+            f"\nСейчас нужно задать пользователю дополнительные вопросы. Для этого вызови scenario_ts_search_tool(entrypoint='<НЕОБХОДИМЫЙ ВОПРОС>'). Заполнение параметра entrypoint зависит от запроса пользователя."
+        ]
+        system = get_ts_prompt()
+        resp = await model.bind_tools([scenario_ts_search_tool]).ainvoke(
+            [system] + messages, config
+        )
+    else:
+        messages += [
+            f"\nЕсли ты ранее получил вопрос из scenario_ts_search_tool, но не задал его пользователю, то нужно спросить у пользователя ответ на этот помощью user_interaction_tool. Если пользователь тебе ответил, далее вызови scenario_ts_search_tool() без каких-либо аргументов, чтобы продолжить задавать вопросы."
+        ]
+        system = get_ts_prompt()
+        resp = await model.bind_tools(
+            [scenario_ts_search_tool, user_interaction_tool]
         ).ainvoke([system] + messages, config)
 
     # logger.debug(f"SCENARIO RESPONSE: {resp}")
@@ -403,5 +425,7 @@ def after_general_tool(state: AgentState):
         return "scenario_tsv_node"
     elif "scenario_skud_node" in content:
         return "scenario_skud_node"
+    elif "scenario_ts_node" in content:
+        return "scenario_ts_node"
 
     return "ticket"
