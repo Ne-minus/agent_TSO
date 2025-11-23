@@ -102,15 +102,21 @@ async def format_output_tool(
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ):
     """Инструмент для форматирования и сохранения названия выбранной заявки"""
+    print(chosen_ticket, if_comment)
     if_comment = None if if_comment in ("None", "", "null") else if_comment
-    description, _ = await _get_candidates(chosen_ticket)
+    if not if_comment:
+        description, _ = await _get_candidates(chosen_ticket)
+        print(description)
+        msg = f"Пользоватеть выбрал заявку {chosen_ticket} с описанием {description}. Далее уточни у пользователя, подходит ли ему данная заявка"
+    else:
+        msg = f"В нашей системе мы не можем завести это заявку. {if_comment}"
 
     return Command(
         goto="ticket",
         update={
             "messages": [
                 ToolMessage(
-                    f"Пользоватеть выбрал заявку {chosen_ticket} с описанием {description}. Далее уточни у пользователя, подходит ли ему данная заявка",
+                    msg,
                     tool_call_id=tool_call_id,
                     name="format_output_tool",
                 )
@@ -165,7 +171,7 @@ async def _search_next_one(
     state: Annotated[dict, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
     preambule: str = None,
-    scenario_type: str = "scenario_search_tool"  # Добавляем параметр для определения типа сценария
+    scenario_type: str = "scenario_search_tool",  # Добавляем параметр для определения типа сценария
 ):
     if tree[curr_question]["is_last"]:
         # Проверяем, является ли это успешным завершением (проблема решена)
@@ -226,7 +232,7 @@ async def _search_next_one(
                 state,
                 tool_call_id,
                 preambule=None,
-                scenario_type=scenario_type
+                scenario_type=scenario_type,
             )
         else:
             if preambule:
@@ -287,6 +293,7 @@ async def scenario_search_tool(
         logger.error(e)
         traceback.print_exc()
 
+
 @tool
 async def scenario_ts_search_tool(
     state: Annotated[dict, InjectedState] = None,
@@ -318,7 +325,7 @@ async def scenario_ts_search_tool(
             state,
             tool_call_id,
             preambule,
-            scenario_type="scenario_ts_search_tool"
+            scenario_type="scenario_ts_search_tool",
         )
         return result
     except Exception as e:

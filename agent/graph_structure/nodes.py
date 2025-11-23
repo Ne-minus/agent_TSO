@@ -288,27 +288,27 @@ async def scenario_skud_node(state: AgentState, config: RunnableConfig, model):
     return {"messages": [resp], "choice_in_progress": True}
 
 
-async def scenario_ts_node(state: AgentState, config: RunnableConfig, model):
-    messages = list(state["messages"])
-    if state["ticket_not_started"]:
-        messages += [
-            f"\nСейчас нужно задать пользователю дополнительные вопросы. Для этого вызови scenario_ts_search_tool(entrypoint='<НЕОБХОДИМЫЙ ВОПРОС>'). Заполнение параметра entrypoint зависит от запроса пользователя."
-        ]
-        system = get_ts_prompt()
-        resp = await model.bind_tools([scenario_ts_search_tool]).ainvoke(
-            [system] + messages, config
-        )
-    else:
-        messages += [
-            f"\nЕсли ты ранее получил вопрос из scenario_ts_search_tool, но не задал его пользователю, то нужно спросить у пользователя ответ на этот помощью user_interaction_tool. Если пользователь тебе ответил, далее вызови scenario_ts_search_tool() без каких-либо аргументов, чтобы продолжить задавать вопросы."
-        ]
-        system = get_ts_prompt()
-        resp = await model.bind_tools(
-            [scenario_ts_search_tool, user_interaction_tool]
-        ).ainvoke([system] + messages, config)
+# async def scenario_ts_node(state: AgentState, config: RunnableConfig, model):
+#     messages = list(state["messages"])
+#     if state["ticket_not_started"]:
+#         messages += [
+#             f"\nСейчас нужно задать пользователю дополнительные вопросы. Для этого вызови scenario_ts_search_tool(entrypoint='<НЕОБХОДИМЫЙ ВОПРОС>'). Заполнение параметра entrypoint зависит от запроса пользователя."
+#         ]
+#         system = get_ts_prompt()
+#         resp = await model.bind_tools([scenario_ts_search_tool]).ainvoke(
+#             [system] + messages, config
+#         )
+#     else:
+#         messages += [
+#             f"\nЕсли ты ранее получил вопрос из scenario_ts_search_tool, но не задал его пользователю, то нужно спросить у пользователя ответ на этот помощью user_interaction_tool. Если пользователь тебе ответил, далее вызови scenario_ts_search_tool() без каких-либо аргументов, чтобы продолжить задавать вопросы."
+#         ]
+#         system = get_ts_prompt()
+#         resp = await model.bind_tools(
+#             [scenario_ts_search_tool, user_interaction_tool]
+#         ).ainvoke([system] + messages, config)
 
-    # logger.debug(f"SCENARIO RESPONSE: {resp}")
-    return {"messages": [resp], "choice_in_progress": True}
+#     # logger.debug(f"SCENARIO RESPONSE: {resp}")
+#     return {"messages": [resp], "choice_in_progress": True}
 
 
 async def scenario_tsv_node(state: AgentState, config: RunnableConfig, model):
@@ -320,6 +320,18 @@ async def scenario_tsv_node(state: AgentState, config: RunnableConfig, model):
     )
 
     response = await llm.ainvoke([system] + messages, config)
+
+    return {"messages": [response], "choice_in_progress": True}
+
+
+async def scenario_ts_node(state: AgentState, config: RunnableConfig, model):
+    messages = list(state["messages"])
+    system = SystemMessage(get_ts_prompt())
+
+    llm = model.bind_tools([user_interaction_tool, format_output_tool])
+
+    response = await llm.ainvoke([system] + messages, config)
+    print(response)
 
     return {"messages": [response], "choice_in_progress": True}
 
