@@ -26,6 +26,7 @@ from agent.prompts.prompts import (
     get_scenario_prompt,
     get_tsv_prompt,
     get_ts_prompt,
+    get_validation_prompt,
 )
 
 from agent.graph_structure.tools import (
@@ -119,7 +120,6 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         return Command(goto=state.get("node_name"))
 
     if state.get("awaiting_fallback_confirmation"):
-        print("CALLBACK")
         other_ticket = _choose_other_ticket(state.get("node_name"))
 
         # from agent.utils.extract_params import ParamExtractor
@@ -172,29 +172,7 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
 
     if state.get("parameters_to_val") != [] and state.get("user_validated") == False:
 
-        mixture = {
-            "SELECT_ASUN_BUILDING": "По какому адресу вы создаете заявку?",
-            "SELECT_INNER_CLIENT": "Вы заводите заявку от своего имени?",
-        }
-
-        params_to_val = state.get("parameters_to_val")
-        for param in params_to_val:
-            messages += [
-                f"\nСейчас нужно провалидировать данные пользователя. Для этого вызови ask_user_with_action_tool(text='{mixture[param]}', action='{param}'). Нельзя продролжать заполнение заявки."
-            ]
-
-            resp = await model.bind_tools([ask_user_with_action_tool]).ainvoke(
-                [system] + messages, config
-            )
-            params_to_val.pop(0)
-            if params_to_val == []:
-                user_validated = True
-
-            return {
-                "messages": [resp],
-                "parameters_to_val": params_to_val,
-                # "user_validated": user_validated,
-            }
+        return Command(goto="validate_user_node")
 
     if state.get("we_need_to_start_params"):
         messages += [
@@ -265,6 +243,17 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
     return {"messages": [resp]}
 
 
+async def validate_user_node(state: AgentState, config: RunnableConfig, model):
+    messages = list(state["messages"])
+    system = SystemMessage(get_validation_prompt())
+
+    resp = await model.bind_tools(
+        [user_interaction_tool, ask_user_with_action_tool]
+    ).ainvoke([system] + messages, config)
+
+    return {"messages": [resp]}
+
+
 async def scenario_skud_node(state: AgentState, config: RunnableConfig, model):
     messages = list(state["messages"])
     if state["ticket_not_started"]:
@@ -286,29 +275,6 @@ async def scenario_skud_node(state: AgentState, config: RunnableConfig, model):
 
     # logger.debug(f"SCENARIO RESPONSE: {resp}")
     return {"messages": [resp], "choice_in_progress": True}
-
-
-# async def scenario_ts_node(state: AgentState, config: RunnableConfig, model):
-#     messages = list(state["messages"])
-#     if state["ticket_not_started"]:
-#         messages += [
-#             f"\nСейчас нужно задать пользователю дополнительные вопросы. Для этого вызови scenario_ts_search_tool(entrypoint='<НЕОБХОДИМЫЙ ВОПРОС>'). Заполнение параметра entrypoint зависит от запроса пользователя."
-#         ]
-#         system = get_ts_prompt()
-#         resp = await model.bind_tools([scenario_ts_search_tool]).ainvoke(
-#             [system] + messages, config
-#         )
-#     else:
-#         messages += [
-#             f"\nЕсли ты ранее получил вопрос из scenario_ts_search_tool, но не задал его пользователю, то нужно спросить у пользователя ответ на этот помощью user_interaction_tool. Если пользователь тебе ответил, далее вызови scenario_ts_search_tool() без каких-либо аргументов, чтобы продолжить задавать вопросы."
-#         ]
-#         system = get_ts_prompt()
-#         resp = await model.bind_tools(
-#             [scenario_ts_search_tool, user_interaction_tool]
-#         ).ainvoke([system] + messages, config)
-
-#     # logger.debug(f"SCENARIO RESPONSE: {resp}")
-#     return {"messages": [resp], "choice_in_progress": True}
 
 
 async def scenario_tsv_node(state: AgentState, config: RunnableConfig, model):

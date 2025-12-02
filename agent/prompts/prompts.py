@@ -18,6 +18,7 @@ with open(tsv_path, "r", encoding="utf-8") as f:
 with open(ts_path, "r", encoding="utf-8") as f:
     ts_prompts = yaml.safe_load(f)
 
+
 def create_system_prompt() -> str:
     return prompts["system_prompt"]
 
@@ -34,6 +35,10 @@ def get_formatting_prompt() -> str:
     return prompts["formatting_prompt"]
 
 
+def get_validation_prompt() -> str:
+    return prompts["validation_system"]
+
+
 def get_scenario_prompt() -> str:
     return prompts["scenario_system_prompt"] + "\n" + prompts["scenario_instructions"]
 
@@ -41,5 +46,10 @@ def get_scenario_prompt() -> str:
 def get_tsv_prompt() -> str:
     return tsv_prompts["tsv_system_prompt"] + "\n" + tsv_prompts["tsv_instructions"]
 
+
 def get_ts_prompt() -> str:
-    return ts_prompts["scenario_ts_system_prompt"] + "\n" + ts_prompts["scenario_ts_instructions"]
+    return (
+        ts_prompts["scenario_ts_system_prompt"]
+        + "\n"
+        + ts_prompts["scenario_ts_instructions"]
+    )
