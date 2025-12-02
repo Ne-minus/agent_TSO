@@ -26,6 +26,7 @@ from agent.prompts.prompts import (
     get_scenario_prompt,
     get_tsv_prompt,
     get_ts_prompt,
+    get_validation_prompt,
 )
 
 from agent.graph_structure.tools import (
@@ -119,7 +120,6 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
         return Command(goto=state.get("node_name"))
 
     if state.get("awaiting_fallback_confirmation"):
-        print("CALLBACK")
         other_ticket = _choose_other_ticket(state.get("node_name"))
 
         # from agent.utils.extract_params import ParamExtractor
@@ -172,29 +172,7 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
 
     if state.get("parameters_to_val") != [] and state.get("user_validated") == False:
 
-        mixture = {
-            "SELECT_ASUN_BUILDING": "По какому адресу вы создаете заявку?",
-            "SELECT_INNER_CLIENT": "Вы заводите заявку от своего имени?",
-        }
-
-        params_to_val = state.get("parameters_to_val")
-        for param in params_to_val:
-            messages += [
-                f"\nСейчас нужно провалидировать данные пользователя. Для этого вызови ask_user_with_action_tool(text='{mixture[param]}', action='{param}'). Нельзя продролжать заполнение заявки."
-            ]
-
-            resp = await model.bind_tools([ask_user_with_action_tool]).ainvoke(
-                [system] + messages, config
-            )
-            params_to_val.pop(0)
-            if params_to_val == []:
-                user_validated = True
-
-            return {
-                "messages": [resp],
-                "parameters_to_val": params_to_val,
-                # "user_validated": user_validated,
-            }
+        return Command(goto="validate_user_node")
 
     if state.get("we_need_to_start_params"):
         messages += [
@@ -261,6 +239,18 @@ async def ticket_reflect_node(state: AgentState, config: RunnableConfig, model):
             },
         )
     # logger.debug(f"TICKET RESPONSE: {resp}")
+
+    return {"messages": [resp]}
+
+
+async def validate_user_node(state: AgentState, config: RunnableConfig, model):
+    messages = list(state["messages"])
+    system = SystemMessage(get_validation_prompt())
+
+    resp = await model.bind_tools(
+        [user_interaction_tool, ask_user_with_action_tool]
+    ).ainvoke([system] + messages, config)
+    print(resp)
 
     return {"messages": [resp]}
 

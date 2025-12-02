@@ -15,6 +15,7 @@ from agent.graph_structure.nodes import (
     scenario_skud_node,
     scenario_tsv_node,
     scenario_ts_node,
+    validate_user_node,
 )
 
 
@@ -28,6 +29,7 @@ def get_graph(model):
     g.add_node("scenario_skud_node", partial(scenario_skud_node, model=model))
     g.add_node("scenario_tsv_node", partial(scenario_tsv_node, model=model))
     g.add_node("scenario_ts_node", partial(scenario_ts_node, model=model))
+    g.add_node("validate_user_node", partial(validate_user_node, model=model))
 
     # Жёлтые узлы (исполнение инструментов)
     g.add_node("use_general_tool", ToolNode(GENERAL_TOOLS))
@@ -77,6 +79,16 @@ def get_graph(model):
 
     g.add_conditional_edges(
         "scenario_ts_node",
+        should_route_scenario_reflect,
+        {
+            "use_ticket_tool": "use_ticket_tool",
+            "use_general_tool": "use_general_tool",
+            "end": END,
+        },
+    )
+
+    g.add_conditional_edges(
+        "validate_user_node",
         should_route_scenario_reflect,
         {
             "use_ticket_tool": "use_ticket_tool",

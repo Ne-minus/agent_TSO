@@ -43,10 +43,27 @@ def _choose_other_ticket(node_name: str) -> str:
 async def ask_user_with_action_tool(
     text: Annotated[str, "Вопрос пользователю"],
     action: Annotated[str, "Название параметра для стейта"],
+    tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ) -> dict:
     """
     Инструмент для уточнения у пользователя параметров.
     """
+    if action == "SELECT_ASUN_BUILDING":
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        content=json.dumps(
+                            {"type": "ask_user", "question": text, "action": action},
+                            ensure_ascii=False,
+                        ),
+                        tool_call_id=tool_call_id,
+                        name="ask_user_with_action_tool",
+                    )
+                ],
+                "user_validated": True,
+            },
+        )
     return {"type": "ask_user", "question": text, "action": action}
 
 
