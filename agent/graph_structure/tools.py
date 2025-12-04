@@ -119,7 +119,6 @@ async def format_output_tool(
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ):
     """Инструмент для форматирования и сохранения названия выбранной заявки"""
-    print(chosen_ticket, if_comment)
     if_comment = None if if_comment in ("None", "", "null") else if_comment
     if not if_comment:
         description, _ = await _get_candidates(chosen_ticket)
