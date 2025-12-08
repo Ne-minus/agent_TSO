@@ -133,6 +133,16 @@ class AIAgent:
         state_action = state.get("action")
         # print("ACTION: ", action)
         # print("STATE ACTION: ", state_action)
+
+        if action:
+            log_message = f"Передаем action {action} в CREATE_TICKET"
+        elif state_action:
+            log_message = f"Передаем action {state_action} в CREATE_TICKET"
+        else:
+            log_message = f"Нет action-a, чтобы передать в CREATE_TICKET"
+
+        logger.debug(log_message)
+
         ticket_data = None
         if state_action == "CREATE_TICKET":
             action = state_action

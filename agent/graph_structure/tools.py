@@ -484,6 +484,8 @@ async def fill_params_tool(
 
     if missing == []:
         # TODO: doublecheck logic
+        logger.debug("Все поля заполнены, сохранения action-а в state.")
+
         msg_text = f"Success: filled {len(params_to_fill)} parameters "
         return Command(
             update={
