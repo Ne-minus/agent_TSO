@@ -106,6 +106,10 @@ async def check_archive_tool(
     today = datetime.today().date()
     diff = (today - d).days
 
+    logger.debug(
+        f"Тип выбранного архива: {archive_type}. Дата: {data}. Разница между датой и текущим днем: {diff}"
+    )
+
     if diff <= lengths[archive_type]:
         return True
     else:
@@ -120,6 +124,8 @@ async def format_output_tool(
 ):
     """Инструмент для форматирования и сохранения названия выбранной заявки"""
     if_comment = None if if_comment in ("None", "", "null") else if_comment
+
+    logger.debug(f"Выбранная заявка: {chosen_ticket}. Комментарий: {if_comment}.")
     if not if_comment:
         description, _ = await _get_candidates(chosen_ticket)
         print(description)
