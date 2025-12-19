@@ -83,13 +83,19 @@ class Formalize:
                 case "id объекта":
                     field.value = request.building.asunId
                 case "Адрес":
-                    field.value = request.building.asunId
+                    field.value = request.building.addr
                 case "Сценарий":
                     field.value = request.scenario
 
                 case "":
                     if field.position == 1:
                         field.value = request.scenario
+
+                case "":
+                    field.value = request.requester.departamentName
+
+                case "":
+                    field.value = request.requester.departamentCode
 
                 case "Неисправность":
                     field.value = request.description
