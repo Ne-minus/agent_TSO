@@ -91,10 +91,10 @@ class Formalize:
                     if field.position == 1:
                         field.value = request.scenario
 
-                case "":
+                case "Подразделение":
                     field.value = request.requester.departamentName
 
-                case "":
+                case "Орг. единица":
                     field.value = request.requester.departamentCode
 
                 case "Неисправность":
