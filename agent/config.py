@@ -60,20 +60,6 @@ class System(BaseModel):
     answer_without_knowledge: bool
 
 
-class Models(BaseModel):
-    embeddings: str
-    llm_model_type: Literal[
-        "gemma3:4b",
-        "gemma3:27b",
-        "GigaChat-2-Max",
-        "GigaChat-2-Pro",
-        "qwen2.5:3b",
-        "qwen3:8b",
-    ]
-    llm_base_url: str
-    language: Literal["ru", "en"]
-
-
 class SomeApiSettings(BaseModel):
     port: int
     host: str
@@ -83,7 +69,6 @@ class SomeApiSettings(BaseModel):
 class Config(BaseModel):
     system: System
     docs: Docs
-    models: Models
     api: SomeApiSettings
 
 

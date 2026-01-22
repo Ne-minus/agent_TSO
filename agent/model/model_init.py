@@ -8,8 +8,6 @@ load_dotenv()
 from langchain_gigachat.chat_models import GigaChat
 from langchain_gigachat.embeddings import GigaChatEmbeddings
 
-from agent.config import Settings
-
 
 def get_embeddings() -> GigaChatEmbeddings:
 
@@ -27,7 +25,7 @@ def get_llm() -> GigaChat:
 
     model = GigaChat(
         # verbose=True,
-        model=Settings.models.llm_model_type,
+        model=os.environ["LLM_MODEL_TYPE"],
         credentials=os.environ["GIGACHAIN_AUTH"],
         scope=os.environ["GIGACHAT_SCOPE"],
         verify_ssl_certs=False,
