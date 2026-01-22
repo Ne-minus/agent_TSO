@@ -5,11 +5,15 @@ import uvicorn
 from fastapi import FastAPI, Request
 
 from api.v1.endpoints import router
+from api.v1.small_endpoints import small_router
 from logger import LOGGING_CONFIG
 
 app = FastAPI()
 
 app.include_router(router)
+app.include_router(small_router)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8080, log_config=LOGGING_CONFIG, log_level="debug")
+    uvicorn.run(
+        app, host="0.0.0.0", port=8080, log_config=LOGGING_CONFIG, log_level="debug"
+    )
