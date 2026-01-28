@@ -1,3 +1,5 @@
+import re
+
 from pydantic import BaseModel
 from typing import Optional
 from small_agent.graph_structure.state import State
@@ -88,11 +90,14 @@ class Formalize:
                 case "Адрес":
                     field.value = self.request.building.full_address
                 case "Сценарий":
-                    field.value = self.request.scenario
+                    field.value = self.request.branch
 
                 case "":
                     if field.position == 1:
-                        field.value = self.request.scenario
+                        match = re.search(r"\(([А-Я].+?)\)", self.request.branch).group(
+                            1
+                        )
+                        field.value = match
 
                 case "Подразделение":
                     field.value = self.request.department
@@ -101,7 +106,9 @@ class Formalize:
                     field.value = self.request.description
 
                 case "Комментарий":
-                    field.value = self.request.initial_problem
+                    field.value = (
+                        f"{self.request.scenario}\n{self.request.initial_problem}"
+                    )
 
                 case "ФИО ВК":
                     field.value = self.request.user.fullname
@@ -121,9 +128,9 @@ class Formalize:
             callerId=self.request.user.personalNumber,
             initiatorId=self.request.user.personalNumber,
             extSystem=ExtSystem.FRIEND,
-            templateId=f"{self.request.branch}_mip",
-            templateName=self.request.branch,
-            description=f"{self.request.branch}. {self.request.scenario}",
+            templateId=f"Ремонт_технических_средств_охраны_mip",
+            templateName="Ремонт_технических_средств_охраны",
+            description=f"Ремонт_технических_средств_охраны_mip. {self.request.branch}",
             information=information,
         )
         return result
