@@ -35,7 +35,7 @@ async def format_output_tool(
     Форматирует данные в структуру: Заявка: Название проблемы из предложенных, Категория и подкатегория, Комментарий: Описание проблемы пользователем.
     """
 
-    # url = os.environ["ARSENAL_URL"] + "/fault-manager/api/v1/ai-hub/create-tso-task"
+    url = os.environ["ARSENAL_URL"] + "/fault-manager/api/v1/ai-hub/create-tso-task"
     form._create_scenario_request(
         state, problem_type, subproblem_type, name, problem_description
     )
