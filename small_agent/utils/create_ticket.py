@@ -41,6 +41,7 @@ class ScenarioRequest(BaseModel):
     description: str
     building: Address
     initial_problem: Optional[str]
+    abb: str
 
     def __str__(self):
         result = "Заявка\n"
@@ -68,6 +69,7 @@ class Formalize:
         scenario: str,
         description: str,
         initial_problem: str,
+        abb: str,
     ) -> None:
         # print("user_info")
         self.request = ScenarioRequest(
@@ -78,6 +80,7 @@ class Formalize:
             description=description,
             building=state.get("address"),
             initial_problem=initial_problem,
+            abb=abb,
         )
 
     def _fill_request(self) -> list[TicketEntry]:
@@ -94,10 +97,7 @@ class Formalize:
 
                 case "":
                     if field.position == 1:
-                        match = re.search(r"\(([А-Я].+?)\)", self.request.branch).group(
-                            1
-                        )
-                        field.value = match
+                        field.value = self.request.abb
 
                 case "Подразделение":
                     field.value = self.request.department

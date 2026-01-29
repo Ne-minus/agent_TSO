@@ -1,7 +1,8 @@
 import aiohttp
+import os
 
 from langchain_core.tools import tool, InjectedToolCallId
-from typing import Annotated, Dict, Any
+from typing import Annotated, Dict, Any, Literal
 from langgraph.prebuilt import InjectedState
 
 from langgraph.types import Command
@@ -27,6 +28,9 @@ async def format_output_tool(
     problem_type: Annotated[str, "Категория проблемы"],
     subproblem_type: Annotated[str, "Подкатегория проблемы"],
     problem_description: Annotated[str, "Описание проблемы от пользователя"],
+    short_problem: Annotated[
+        Literal["ТСВ", "СКУД", "СОТС"], "Аббревиатура категории проблемы"
+    ],
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
     state: Annotated[dict, InjectedState] = None,
 ) -> dict:
@@ -37,7 +41,7 @@ async def format_output_tool(
 
     url = os.environ["ARSENAL_URL"] + "/fault-manager/api/v1/ai-hub/create-tso-task"
     form._create_scenario_request(
-        state, problem_type, subproblem_type, name, problem_description
+        state, problem_type, subproblem_type, name, problem_description, short_problem
     )
     payload = form.create_ticket(state)
     print(payload.model_dump())
@@ -47,8 +51,15 @@ async def format_output_tool(
             url, json=payload.model_dump(exclude_none=True)
         ) as resp:
             response = await resp.json()
+            status_code = resp.status
 
-    task_id = response["message"]
+    if status_code == 200:
+        task_id = response["message"]
+        formatted_text = f"Спасибо за обращение! Ваша заявка переданая специалисту.\n\nЗаявка: {task_id}\nКомментарий: {problem_description}"
+    else:
+        formatted_text = (
+            f"Кажется, что-то пошло не так... Пожалуйста, повторите попытку позже."
+        )
 
     ticket_dict = {
         "Заявка": name,
