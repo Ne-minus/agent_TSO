@@ -9,6 +9,7 @@ from langgraph.types import Command
 from langchain_core.messages import ToolMessage
 
 from small_agent.utils.create_ticket import Formalize
+from small_agent.utils.encript_logs import encript_ticketdata
 
 form = Formalize()
 
@@ -44,7 +45,9 @@ async def format_output_tool(
         state, problem_type, subproblem_type, name, problem_description, short_problem
     )
     payload = form.create_ticket(state)
-    print(payload.model_dump())
+
+    payload_log = payload.model_dump()
+    payload = encript_ticketdata(payload_log)
 
     async with aiohttp.ClientSession() as session:
         async with session.post(
