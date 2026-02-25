@@ -21,11 +21,11 @@ def get_embeddings() -> GigaChatEmbeddings:
     return embeddings
 
 
-def get_llm() -> GigaChat:
+def get_llm(model=os.environ["LLM_MODEL_TYPE"]) -> GigaChat:
 
     model = GigaChat(
         # verbose=True,
-        model=os.environ["LLM_MODEL_TYPE"],
+        model=model,
         credentials=os.environ["GIGACHAIN_AUTH"],
         scope=os.environ["GIGACHAT_SCOPE"],
         verify_ssl_certs=False,

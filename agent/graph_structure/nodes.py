@@ -297,7 +297,6 @@ async def scenario_ts_node(state: AgentState, config: RunnableConfig, model):
     llm = model.bind_tools([user_interaction_tool, format_output_tool])
 
     response = await llm.ainvoke([system] + messages, config)
-    print(response)
 
     return {"messages": [response], "choice_in_progress": True}
 

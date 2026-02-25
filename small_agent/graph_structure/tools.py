@@ -19,7 +19,6 @@ async def user_interaction_tool(text: Annotated[str, "текст для поль
     """
     Универсальный инструмент для взаимодействия с пользователем.
     """
-    print("we are interacting")
     return {"type": "response", "text": text}
 
 
@@ -47,7 +46,7 @@ async def format_output_tool(
     payload = form.create_ticket(state)
 
     payload_log = payload.model_dump()
-    payload = encript_ticketdata(payload_log)
+    payload_log = encript_ticketdata(payload_log)
 
     async with aiohttp.ClientSession() as session:
         async with session.post(

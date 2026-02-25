@@ -149,5 +149,4 @@ class Formalize:
     def create_ticket(self, state: AgentState) -> TicketData:
         request = self._create_scenario_request(state)
         ticket = self._create_ticket_data_for_api(request)
-        print(ticket)
         return ticket

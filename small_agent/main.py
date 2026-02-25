@@ -57,9 +57,12 @@ class AIAgent_DNIE:
     Возвращаем объект совместимый со схемой FinalAnswer/MessageToAgentRs.
     """
 
-    def __init__(self):
+    def __init__(self, model=None):
         tools_list = [user_interaction_tool, format_output_tool]
-        self.llm = get_llm().bind_tools(tools_list)
+        if model:
+            self.llm = get_llm(model=model).bind_tools(tools_list)
+        else:
+            self.llm = get_llm().bind_tools(tools_list)
 
         self._graph = build_graph(self.llm)
 
@@ -79,13 +82,9 @@ class AIAgent_DNIE:
 
     def _finalize(self, state: State, thread_id) -> Response:
         msg: BaseMessage = state["messages"][-1]
-        print("MESSAGE: ", msg)
         text = self._normalize_result(msg.content) if msg else ""
-        text = re.sub("\\n", "<br />", md.render(text))
-        text = re.sub("\\\\n", "<br />", text)
 
         status = state.get("status")
-        print(status)
         return Response(thread_id=thread_id, content=text, status=status)
 
     def _init_state(self, input_data: CreateRunPayload) -> State:
@@ -114,6 +113,7 @@ class AIAgent_DNIE:
         return init_state
 
     async def conversation(self, input_data: CreateRunPayload):
+        logger.info(self.llm)
         config = _thread_config(input_data.thread_id)
         user_text = input_data.input
         inputs: Dict[str, Any] = {"messages": [HumanMessage(content=user_text)]}

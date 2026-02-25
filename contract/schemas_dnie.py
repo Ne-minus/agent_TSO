@@ -120,7 +120,7 @@ class Incident(BaseModel):
     position: str = Field(title="Должность Заявителя", example="Сервисный менеджер")
     department: str = Field(title="Подразделение Заявителя", example="Сервисный центр")
 
-    address: Optional[Address] = None
+    address: Address
     timezone: Optional[str] = Field(
         default=None, title="Часовой пояс Пользователя", example="03"
     )

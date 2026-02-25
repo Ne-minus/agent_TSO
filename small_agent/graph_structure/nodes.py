@@ -16,7 +16,6 @@ async def analyze_query(state: State, config: RunnableConfig, model) -> State:
     status = state["status"]
 
     if not address:
-        print("no address")
         messages.append("Важно: У пользователя не задан адрес в профиле Сберчат.")
         status = "DONE"
 
@@ -30,11 +29,9 @@ async def analyze_query(state: State, config: RunnableConfig, model) -> State:
 def should_route_scenario_reflect(state: State):
 
     last = state["messages"][-1]
-    print(last)
     calls = getattr(last, "tool_calls", None) or []
 
     if calls:
-        print("Tools called")
         return "tools"
     else:
         return "end"

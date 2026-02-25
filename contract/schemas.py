@@ -347,7 +347,7 @@ class ErrorResponse(BaseModel):
 class TaskResponse(BaseModel):
     status: Optional[str] = Field(
         "in_progress",
-        examples=["in_progress", "done"],
+        examples=["in_progress", "done", "error"],
         description="Статус выполнения задачи",
     )
     result: Optional[MessageToAgentRs] = Field(

@@ -137,5 +137,4 @@ class Formalize:
 
     def create_ticket(self, state: State) -> TicketData:
         ticket = self._create_ticket_data_for_api()
-        print(ticket)
         return ticket

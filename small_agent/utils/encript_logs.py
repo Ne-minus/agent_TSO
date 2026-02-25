@@ -48,9 +48,3 @@ def encript_ticketdata(payload_log: dict) -> dict:
                     addr = ", ".join(addr)
                     j["value"] = addr
     return payload_log
-
-
-fio = "354550"
-enc = encrypt_obfuscate(fio)
-print(enc)  # в лог
-print(decrypt_obfuscate(enc))  # обратно

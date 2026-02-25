@@ -128,7 +128,6 @@ async def format_output_tool(
     logger.debug(f"Выбранная заявка: {chosen_ticket}. Комментарий: {if_comment}.")
     if not if_comment:
         description, _ = await _get_candidates(chosen_ticket)
-        print(description)
         msg = f"Пользоватеть выбрал заявку {chosen_ticket} с описанием {description}. Далее уточни у пользователя, подходит ли ему данная заявка"
     else:
         msg = f"В нашей системе мы не можем завести это заявку. {if_comment}"
@@ -386,12 +385,10 @@ async def get_params_tool(
                 ):
                     # Проверяем ответ пользователя
                     # from agent.utils.extract_params import ParamExtractor
-                    print("WE ARE HERE")
                     extractor = ParamExtractor(state.get("llm"), state)
                     user_response = await extractor.simple_extraction(
                         f"Вам подходит заявка"
                     )
-                    print(user_response)
 
                     if user_response == "отрицательно":
                         # Пользователь отказался, нужно сначала оповестить о переходе на "Иные неисправности"

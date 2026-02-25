@@ -88,7 +88,7 @@ class AIAgent:
     Возвращаем объект совместимый со схемой FinalAnswer/MessageToAgentRs.
     """
 
-    def __init__(self):
+    def __init__(self, model=None):
         tools_list = [
             user_interaction_tool,
             kb_search_tool,
@@ -97,7 +97,10 @@ class AIAgent:
             fill_params_tool,
             # validate_user_tool,
         ]
-        self.llm = get_llm().bind_tools(tools_list)
+        if model:
+            self.llm = get_llm(model=model).bind_tools(tools_list)
+        else:
+            self.llm = get_llm().bind_tools(tools_list)
 
         self._graph = get_graph(self.llm)
 
